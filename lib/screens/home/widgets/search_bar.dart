@@ -28,7 +28,7 @@ class HizbSearchBar extends StatelessWidget {
       ),
       child: TextField(
         decoration: InputDecoration(
-          hintText: 'ابحث باسم الحزب...',
+          hintText: 'ابحث في الأحزاب...',
           hintStyle: TextStyle(
             fontFamily: 'ScheherazadeNew',
             color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,

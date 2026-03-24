@@ -6,12 +6,14 @@ class ContentBody extends StatelessWidget {
   final String content;
   final double fontSize;
   final bool isDark;
+  final String searchQuery;
 
   const ContentBody({
     super.key,
     required this.content,
     required this.fontSize,
     required this.isDark,
+    this.searchQuery = '',
   });
 
   @override
@@ -242,16 +244,46 @@ class ContentBody extends StatelessWidget {
   }
 
   Widget _buildBodyText(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontFamily: 'ScheherazadeNew',
-        fontSize: fontSize,
-        height: 2.2,
-        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-        fontWeight: FontWeight.w400,
-        letterSpacing: 0.3,
-      ),
+    final baseStyle = TextStyle(
+      fontFamily: 'ScheherazadeNew',
+      fontSize: fontSize,
+      height: 2.2,
+      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0.3,
+    );
+
+    if (searchQuery.isEmpty || !text.contains(searchQuery)) {
+      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
+    }
+
+    // Build highlighted spans
+    final highlightColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final spans = <TextSpan>[];
+    int start = 0;
+
+    while (start < text.length) {
+      final matchIndex = text.indexOf(searchQuery, start);
+      if (matchIndex < 0) {
+        spans.add(TextSpan(text: text.substring(start)));
+        break;
+      }
+      if (matchIndex > start) {
+        spans.add(TextSpan(text: text.substring(start, matchIndex)));
+      }
+      spans.add(TextSpan(
+        text: text.substring(matchIndex, matchIndex + searchQuery.length),
+        style: TextStyle(
+          color: isDark ? AppColors.darkBackground : Colors.white,
+          fontWeight: FontWeight.w700,
+          backgroundColor: highlightColor.withValues(alpha: 0.85),
+        ),
+      ));
+      start = matchIndex + searchQuery.length;
+    }
+
+    return Text.rich(
+      TextSpan(style: baseStyle, children: spans),
       textAlign: TextAlign.justify,
     );
   }

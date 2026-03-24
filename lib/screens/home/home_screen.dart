@@ -112,8 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildContent(FavoritesProvider favProvider, bool isDark) {
     final filtered = allParts.where((p) {
+      if (_searchText.isEmpty) return true;
       return p.title.contains(_searchText) ||
-          (p.subtitle?.contains(_searchText) ?? false);
+          (p.subtitle?.contains(_searchText) ?? false) ||
+          p.content.contains(_searchText);
     }).toList();
 
     final favList =
@@ -131,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.red.shade600,
       )));
       for (final part in favList) {
-        items.add(_ListItem.card(part: part, isFavorite: true));
+        items.add(_ListItem.card(part: part, isFavorite: true, searchQuery: _searchText));
       }
       items.add(const _ListItem.spacer(key: 'spacer_fav', height: 16));
     }
@@ -142,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
       color: AppColors.emeraldGreen,
     )));
     for (final part in otherList) {
-      items.add(_ListItem.card(part: part, isFavorite: false));
+      items.add(_ListItem.card(part: part, isFavorite: false, searchQuery: _searchText));
     }
     items.add(const _ListItem.spacer(key: 'spacer_bottom', height: 24));
 
@@ -168,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: HizbCard(
                       part: item.part!,
                       isFavorite: item.isFavorite,
+                      searchQuery: item.searchQuery,
                     ),
                   );
               }
@@ -200,6 +203,7 @@ class _ListItem {
   final double? height;
   final HizbPart? part;
   final bool isFavorite;
+  final String searchQuery;
 
   const _ListItem._({
     required this.type,
@@ -208,6 +212,7 @@ class _ListItem {
     this.height,
     this.part,
     this.isFavorite = false,
+    this.searchQuery = '',
   });
 
   _ListItem.header({required String key, required Widget widget})
@@ -216,8 +221,8 @@ class _ListItem {
   const _ListItem.spacer({required String key, required double height})
       : this._(type: _ItemType.spacer, key: key, height: height);
 
-  _ListItem.card({required HizbPart part, required bool isFavorite})
-      : this._(type: _ItemType.card, part: part, isFavorite: isFavorite);
+  _ListItem.card({required HizbPart part, required bool isFavorite, String searchQuery = ''})
+      : this._(type: _ItemType.card, part: part, isFavorite: isFavorite, searchQuery: searchQuery);
 }
 
 /// Card wrapper that handles:

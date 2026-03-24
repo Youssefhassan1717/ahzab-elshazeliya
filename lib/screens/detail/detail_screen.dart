@@ -12,8 +12,9 @@ import 'widgets/zoom_instructions.dart';
 
 class DetailScreen extends StatefulWidget {
   final HizbPart part;
+  final String searchQuery;
 
-  const DetailScreen({super.key, required this.part});
+  const DetailScreen({super.key, required this.part, this.searchQuery = ''});
 
   @override
   State<DetailScreen> createState() => _DetailScreenState();
@@ -254,6 +255,7 @@ class _DetailScreenState extends State<DetailScreen>
                         content: widget.part.content,
                         fontSize: _fontSize,
                         isDark: isDark,
+                        searchQuery: widget.searchQuery,
                       ),
                     ),
                     const SizedBox(height: 20),

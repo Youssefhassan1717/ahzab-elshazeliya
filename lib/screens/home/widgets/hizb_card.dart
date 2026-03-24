@@ -9,11 +9,13 @@ import '../../detail/detail_screen.dart';
 class HizbCard extends StatefulWidget {
   final HizbPart part;
   final bool isFavorite;
+  final String searchQuery;
 
   const HizbCard({
     super.key,
     required this.part,
     this.isFavorite = false,
+    this.searchQuery = '',
   });
 
   @override
@@ -250,6 +252,13 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                       maxLines: 1,
                                     ),
                                   ],
+                                  // Content match snippet
+                                  if (widget.searchQuery.isNotEmpty &&
+                                      part.content.contains(widget.searchQuery) &&
+                                      !part.title.contains(widget.searchQuery)) ...[
+                                    const SizedBox(height: 6),
+                                    _buildSnippet(isDark, accentColor),
+                                  ],
                                 ],
                               ),
                             ),
@@ -294,11 +303,72 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildSnippet(bool isDark, Color accentColor) {
+    final query = widget.searchQuery;
+    // Clean content (remove §SECTION§ markers)
+    final cleanContent = part.content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ');
+    final matchIndex = cleanContent.indexOf(query);
+    if (matchIndex < 0) return const SizedBox.shrink();
+
+    // Extract snippet around the match
+    const snippetRadius = 35;
+    final start = (matchIndex - snippetRadius).clamp(0, cleanContent.length);
+    final end = (matchIndex + query.length + snippetRadius).clamp(0, cleanContent.length);
+    final before = cleanContent.substring(start, matchIndex);
+    final match = cleanContent.substring(matchIndex, matchIndex + query.length);
+    final after = cleanContent.substring(matchIndex + query.length, end);
+
+    final prefix = start > 0 ? '...' : '';
+    final suffix = end < cleanContent.length ? '...' : '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: isDark ? 0.08 : 0.04),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: accentColor.withValues(alpha: isDark ? 0.12 : 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: RichText(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textDirection: TextDirection.rtl,
+        text: TextSpan(
+          style: TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            fontSize: 12,
+            color: isDark
+                ? AppColors.darkTextSecondary.withValues(alpha: 0.7)
+                : AppColors.lightTextSecondary.withValues(alpha: 0.7),
+            height: 1.4,
+          ),
+          children: [
+            TextSpan(text: '$prefix$before'),
+            TextSpan(
+              text: match,
+              style: TextStyle(
+                color: accentColor,
+                fontWeight: FontWeight.w700,
+                backgroundColor: accentColor.withValues(alpha: isDark ? 0.15 : 0.10),
+              ),
+            ),
+            TextSpan(text: '$after$suffix'),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _navigateToDetail(BuildContext context) {
     HapticFeedback.lightImpact();
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, animation, secondaryAnimation) => DetailScreen(part: part),
+        pageBuilder: (_, animation, secondaryAnimation) => DetailScreen(
+          part: part,
+          searchQuery: widget.searchQuery,
+        ),
         transitionsBuilder: (_, animation, secondaryAnimation, child) {
           final curvedAnimation = CurvedAnimation(
             parent: animation,
