@@ -7,35 +7,29 @@ class ZoomInstructions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.emeraldGreen.withValues(alpha: isDark ? 0.1 : 0.05),
-            Colors.transparent,
-          ],
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
-        ),
-        borderRadius: BorderRadius.circular(14),
+        color: accentColor.withValues(alpha: isDark ? 0.06 : 0.03),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.emeraldGreen.withValues(alpha: 0.15),
+          color: accentColor.withValues(alpha: isDark ? 0.12 : 0.08),
         ),
       ),
       child: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: AppColors.emeraldGreen.withValues(alpha: 0.1),
+              color: accentColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.touch_app,
-              color: AppColors.emeraldGreen,
+            child: Icon(
+              Icons.touch_app_rounded,
+              color: accentColor.withValues(alpha: 0.6),
               size: 16,
             ),
           ),

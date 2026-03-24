@@ -142,7 +142,11 @@ class _DetailScreenState extends State<DetailScreen>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           title: Hero(
             tag: 'hizb_title_${widget.part.id}',
             flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
@@ -209,7 +213,24 @@ class _DetailScreenState extends State<DetailScreen>
               onScaleStart: _onScaleStart,
               onScaleUpdate: _onScaleUpdate,
               onScaleEnd: _onScaleEnd,
-              child: SingleChildScrollView(
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: RawScrollbar(
+                controller: _scrollController,
+                thumbVisibility: false,
+                trackVisibility: false,
+                thickness: 4.5,
+                radius: const Radius.circular(8),
+                fadeDuration: const Duration(milliseconds: 400),
+                timeToFade: const Duration(milliseconds: 800),
+                thumbColor: isDark
+                    ? AppColors.gold.withValues(alpha: 0.45)
+                    : AppColors.emeraldGreen.withValues(alpha: 0.35),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                minThumbLength: 80,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: SingleChildScrollView(
                 controller: _scrollController,
                 physics: _isScaling
                     ? const NeverScrollableScrollPhysics()
@@ -239,6 +260,9 @@ class _DetailScreenState extends State<DetailScreen>
                     const ZoomInstructions(),
                   ],
                 ),
+              ),
+              ),
+              ),
               ),
             ),
           ),
