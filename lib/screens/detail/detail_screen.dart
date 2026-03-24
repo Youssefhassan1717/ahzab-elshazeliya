@@ -162,9 +162,12 @@ class _DetailScreenState extends State<DetailScreen>
     final (matchStart, _) = matches.first;
     final fraction = matchStart / cleanContent.length;
 
-    // Calculate target offset (proportional to content position)
-    // Subtract some to show context above the match
-    final targetOffset = (fraction * maxScroll - 80).clamp(0.0, maxScroll);
+    // Get viewport height to center the match
+    final viewportHeight = _scrollController.position.viewportDimension;
+
+    // Calculate target: proportional position minus half viewport to center
+    final rawTarget = fraction * maxScroll;
+    final targetOffset = (rawTarget - viewportHeight * 0.35).clamp(0.0, maxScroll);
 
     _scrollController.animateTo(
       targetOffset,

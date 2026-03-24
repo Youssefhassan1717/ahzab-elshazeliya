@@ -304,23 +304,47 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
   Widget _buildSnippet(bool isDark, Color accentColor) {
     final query = widget.searchQuery;
     final normalizedQuery = normalizeArabic(query);
-    // Clean content (remove §SECTION§ markers)
-    final cleanContent = part.content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ');
+    // Clean content: remove §SECTION§ markers and collapse whitespace
+    final cleanContent = part.content
+        .replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     final matches = findNormalizedMatches(cleanContent, normalizedQuery);
     if (matches.isEmpty) return const SizedBox.shrink();
 
     final (matchStart, matchEnd) = matches.first;
 
-    // Extract snippet around the match
-    const snippetRadius = 40;
-    final start = (matchStart - snippetRadius).clamp(0, cleanContent.length);
-    final end = (matchEnd + snippetRadius).clamp(0, cleanContent.length);
-    final before = cleanContent.substring(start, matchStart);
-    final matchText = cleanContent.substring(matchStart, matchEnd);
-    final after = cleanContent.substring(matchEnd, end);
+    // Find word boundaries for cleaner snippet
+    int snippetStart = matchStart;
+    int count = 0;
+    // Go back ~5 words or 50 chars
+    while (snippetStart > 0 && count < 50) {
+      snippetStart--;
+      count++;
+    }
+    // Snap to next space to avoid cutting a word
+    while (snippetStart > 0 && cleanContent[snippetStart] != ' ') {
+      snippetStart--;
+    }
+    if (snippetStart > 0) snippetStart++; // skip the space
 
-    final prefix = start > 0 ? '...' : '';
-    final suffix = end < cleanContent.length ? '...' : '';
+    int snippetEnd = matchEnd;
+    count = 0;
+    while (snippetEnd < cleanContent.length && count < 50) {
+      snippetEnd++;
+      count++;
+    }
+    // Snap to prev space
+    while (snippetEnd < cleanContent.length && cleanContent[snippetEnd] != ' ') {
+      snippetEnd++;
+    }
+
+    final before = cleanContent.substring(snippetStart, matchStart);
+    final matchText = cleanContent.substring(matchStart, matchEnd);
+    final after = cleanContent.substring(matchEnd, snippetEnd);
+
+    final prefix = snippetStart > 0 ? '... ' : '';
+    final suffix = snippetEnd < cleanContent.length ? ' ...' : '';
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
