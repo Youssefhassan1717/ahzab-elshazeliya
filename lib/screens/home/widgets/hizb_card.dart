@@ -254,8 +254,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                   ],
                                   // Content match snippet
                                   if (widget.searchQuery.isNotEmpty &&
-                                      part.content.contains(widget.searchQuery) &&
-                                      !part.title.contains(widget.searchQuery)) ...[
+                                      part.content.contains(widget.searchQuery)) ...[
                                     const SizedBox(height: 6),
                                     _buildSnippet(isDark, accentColor),
                                   ],

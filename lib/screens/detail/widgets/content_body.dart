@@ -7,6 +7,7 @@ class ContentBody extends StatelessWidget {
   final double fontSize;
   final bool isDark;
   final String searchQuery;
+  final GlobalKey? firstMatchKey;
 
   const ContentBody({
     super.key,
@@ -14,6 +15,7 @@ class ContentBody extends StatelessWidget {
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
+    this.firstMatchKey,
   });
 
   @override
@@ -216,8 +218,23 @@ class ContentBody extends StatelessWidget {
   static final _sectionPattern = RegExp(r'§SECTION§(.+?)§SECTION§');
 
   Widget _buildContent() {
+    // Track whether we've placed the firstMatchKey
+    bool keyPlaced = false;
+
+    Widget buildText(String text) {
+      final widget = _buildBodyText(text);
+      if (!keyPlaced &&
+          firstMatchKey != null &&
+          searchQuery.isNotEmpty &&
+          text.contains(searchQuery)) {
+        keyPlaced = true;
+        return Container(key: firstMatchKey, child: widget);
+      }
+      return widget;
+    }
+
     if (!content.contains('§SECTION§')) {
-      return _buildBodyText(content);
+      return buildText(content);
     }
 
     final parts = <Widget>[];
@@ -226,7 +243,7 @@ class ContentBody extends StatelessWidget {
     for (final match in _sectionPattern.allMatches(content)) {
       final before = content.substring(lastEnd, match.start).trim();
       if (before.isNotEmpty) {
-        parts.add(_buildBodyText(before));
+        parts.add(buildText(before));
       }
       parts.add(_buildSectionHeader(match.group(1)!));
       lastEnd = match.end;
@@ -234,7 +251,7 @@ class ContentBody extends StatelessWidget {
 
     final after = content.substring(lastEnd).trim();
     if (after.isNotEmpty) {
-      parts.add(_buildBodyText(after));
+      parts.add(buildText(after));
     }
 
     return Column(

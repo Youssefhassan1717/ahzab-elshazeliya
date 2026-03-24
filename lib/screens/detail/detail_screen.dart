@@ -31,6 +31,7 @@ class _DetailScreenState extends State<DetailScreen>
   bool _isScaling = false;
 
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _firstMatchKey = GlobalKey();
 
   late final AnimationController _animController;
   Animation<double>? _animation;
@@ -42,6 +43,13 @@ class _DetailScreenState extends State<DetailScreen>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
+
+    // Auto-scroll to first match after layout
+    if (widget.searchQuery.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToFirstMatch();
+      });
+    }
   }
 
   @override
@@ -134,6 +142,18 @@ class _DetailScreenState extends State<DetailScreen>
     HapticFeedback.lightImpact();
     _previousScale = 1.0;
     _animateToFontSize(_baseFontSize, const Duration(milliseconds: 300));
+  }
+
+  void _scrollToFirstMatch() {
+    final ctx = _firstMatchKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        alignment: 0.3, // show match at ~30% from top
+      );
+    }
   }
 
   @override
@@ -256,6 +276,7 @@ class _DetailScreenState extends State<DetailScreen>
                         fontSize: _fontSize,
                         isDark: isDark,
                         searchQuery: widget.searchQuery,
+                        firstMatchKey: widget.searchQuery.isNotEmpty ? _firstMatchKey : null,
                       ),
                     ),
                     const SizedBox(height: 20),
