@@ -16,80 +16,196 @@ class ContentBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final accentSoft = accent.withValues(alpha: isDark ? 0.18 : 0.12);
+    final accentFaint = accent.withValues(alpha: isDark ? 0.08 : 0.05);
 
     return Container(
+      // Outer frame
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkSurface.withValues(alpha: 0.95)
-            : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: accentColor.withValues(alpha: isDark ? 0.12 : 0.08),
-          width: 1,
+          color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
+          width: 1.5,
         ),
         boxShadow: [
+          // Deep shadow
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.08),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+          // Mid shadow
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          // Accent glow
+          BoxShadow(
+            color: accent.withValues(alpha: isDark ? 0.06 : 0.03),
+            blurRadius: 24,
+            spreadRadius: 2,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Subtle side borders (Islamic frame feel)
-            Positioned(
-              top: 20,
-              bottom: 20,
-              left: 0,
-              child: Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      accentColor.withValues(alpha: 0.0),
-                      accentColor.withValues(alpha: isDark ? 0.15 : 0.08),
-                      accentColor.withValues(alpha: 0.0),
-                    ],
+        borderRadius: BorderRadius.circular(27),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurface
+                : AppColors.lightSurface,
+          ),
+          child: Stack(
+            children: [
+              // Subtle radial glow at top
+              Positioned(
+                top: -60,
+                left: 0,
+                right: 0,
+                height: 200,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.topCenter,
+                      radius: 1.2,
+                      colors: [
+                        accent.withValues(alpha: isDark ? 0.06 : 0.03),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            Positioned(
-              top: 20,
-              bottom: 20,
-              right: 0,
-              child: Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      accentColor.withValues(alpha: 0.0),
-                      accentColor.withValues(alpha: isDark ? 0.15 : 0.08),
-                      accentColor.withValues(alpha: 0.0),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
 
-            // Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-              child: content.isNotEmpty
-                  ? _buildContent()
-                  : _buildEmptyState(),
+              // Left side ornamental border
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 0,
+                child: _sideOrnament(accent, isDark),
+              ),
+              // Right side ornamental border
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                child: _sideOrnament(accent, isDark),
+              ),
+
+              // Corner ornaments
+              for (final corner in _Corner.values)
+                Positioned(
+                  top: corner.isTop ? 0 : null,
+                  bottom: corner.isTop ? null : 0,
+                  left: corner.isLeft ? 0 : null,
+                  right: corner.isLeft ? null : 0,
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CustomPaint(
+                      painter: _CornerPainter(
+                        color: accent.withValues(alpha: isDark ? 0.35 : 0.20),
+                        corner: corner,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Main content column
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Top ornamental band
+                  _ornamentalBand(accent, accentSoft, accentFaint),
+
+                  // Inner frame with content
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      border: Border.symmetric(
+                        vertical: BorderSide(
+                          color: accentFaint,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 24,
+                      ),
+                      child: content.isNotEmpty
+                          ? _buildContent()
+                          : _buildEmptyState(),
+                    ),
+                  ),
+
+                  // Bottom ornamental band
+                  _ornamentalBand(accent, accentSoft, accentFaint),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Decorative band at top/bottom of the frame
+  Widget _ornamentalBand(Color accent, Color accentSoft, Color accentFaint) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: accentFaint,
+        border: Border(
+          bottom: BorderSide(color: accentSoft, width: 0.5),
+          top: BorderSide(color: accentSoft, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 16),
+          Expanded(child: _gradientLine(accent, true)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: _eightPointStar(accent, 7),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: _eightPointStar(accent, 5),
+          ),
+          Text(
+            ' ۞ ',
+            style: TextStyle(
+              fontSize: 14,
+              color: accent.withValues(alpha: 0.45),
             ),
-          ],
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: _eightPointStar(accent, 5),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: _eightPointStar(accent, 7),
+          ),
+          Expanded(child: _gradientLine(accent, false)),
+          const SizedBox(width: 16),
+        ],
+      ),
+    );
+  }
+
+  /// Side border with repeating diamond dots
+  Widget _sideOrnament(Color accent, bool isDark) {
+    return SizedBox(
+      width: 10,
+      child: CustomPaint(
+        painter: _SideBorderPainter(
+          color: accent.withValues(alpha: isDark ? 0.12 : 0.07),
+          dotColor: accent.withValues(alpha: isDark ? 0.20 : 0.10),
         ),
       ),
     );
@@ -143,61 +259,62 @@ class ContentBody extends StatelessWidget {
   Widget _buildSectionHeader(String title) {
     final headerColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
         children: [
-          // Top ornamental line with star
+          // Top line with triple star
           Row(
             children: [
               Expanded(child: _gradientLine(headerColor, true)),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _eightPointStar(headerColor, 10),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _eightPointStar(headerColor, 6),
               ),
-              Text(
-                '۞',
-                style: TextStyle(
-                  fontSize: fontSize * 0.7,
-                  color: headerColor.withValues(alpha: 0.6),
-                ),
-              ),
+              _eightPointStar(headerColor, 10),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _eightPointStar(headerColor, 10),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _eightPointStar(headerColor, 6),
               ),
               Expanded(child: _gradientLine(headerColor, false)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
-          // Section title
-          Text(
-            title,
-            style: TextStyle(
-              fontFamily: 'Amiri',
-              fontSize: fontSize * 1.15,
-              fontWeight: FontWeight.w700,
-              color: headerColor,
-              height: 1.6,
+          // Title in ornamental frame
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: headerColor.withValues(alpha: isDark ? 0.08 : 0.04),
+              border: Border.all(
+                color: headerColor.withValues(alpha: isDark ? 0.15 : 0.08),
+                width: 0.5,
+              ),
             ),
-            textAlign: TextAlign.center,
+            child: Text(
+              '﴾  $title  ﴿',
+              style: TextStyle(
+                fontFamily: 'Amiri',
+                fontSize: fontSize * 1.15,
+                fontWeight: FontWeight.w700,
+                color: headerColor,
+                height: 1.6,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
-          // Bottom ornamental line
+          // Bottom line
           Row(
             children: [
               Expanded(child: _gradientLine(headerColor, true)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  '﴾ ﴿',
-                  style: TextStyle(
-                    color: headerColor.withValues(alpha: 0.4),
-                    fontSize: 14,
-                    fontFamily: 'ScheherazadeNew',
-                  ),
+              Text(
+                '  ۞  ',
+                style: TextStyle(
+                  color: headerColor.withValues(alpha: 0.35),
+                  fontSize: 12,
                 ),
               ),
               Expanded(child: _gradientLine(headerColor, false)),
@@ -294,6 +411,119 @@ class _MiniStarPainter extends CustomPainter {
     }
     path.close();
     canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Paints decorative corner flourish (L-shape with curves)
+enum _Corner { topLeft, topRight, bottomLeft, bottomRight }
+
+extension on _Corner {
+  bool get isTop => this == _Corner.topLeft || this == _Corner.topRight;
+  bool get isLeft => this == _Corner.topLeft || this == _Corner.bottomLeft;
+}
+
+class _CornerPainter extends CustomPainter {
+  final Color color;
+  final _Corner corner;
+  _CornerPainter({required this.color, required this.corner});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    final w = size.width;
+    final h = size.height;
+
+    canvas.save();
+
+    // Rotate depending on corner
+    switch (corner) {
+      case _Corner.topLeft:
+        break; // default orientation
+      case _Corner.topRight:
+        canvas.translate(w, 0);
+        canvas.scale(-1, 1);
+        break;
+      case _Corner.bottomLeft:
+        canvas.translate(0, h);
+        canvas.scale(1, -1);
+        break;
+      case _Corner.bottomRight:
+        canvas.translate(w, h);
+        canvas.scale(-1, -1);
+        break;
+    }
+
+    // Draw an L-shaped arc flourish
+    final path = Path();
+    // Outer L
+    path.moveTo(4, 24);
+    path.quadraticBezierTo(4, 4, 24, 4);
+    canvas.drawPath(path, paint);
+
+    // Inner L (smaller)
+    final inner = Path();
+    inner.moveTo(8, 18);
+    inner.quadraticBezierTo(8, 8, 18, 8);
+    canvas.drawPath(inner, paint..strokeWidth = 1.0);
+
+    // Small dot at corner
+    canvas.drawCircle(
+      const Offset(6, 6),
+      1.5,
+      Paint()..color = color..style = PaintingStyle.fill,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Paints a thin vertical line with periodic diamond dots
+class _SideBorderPainter extends CustomPainter {
+  final Color color;
+  final Color dotColor;
+  _SideBorderPainter({required this.color, required this.dotColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
+
+    final cx = size.width / 2;
+
+    // Vertical line
+    canvas.drawLine(
+      Offset(cx, 20),
+      Offset(cx, size.height - 20),
+      linePaint,
+    );
+
+    // Diamond dots every 50px
+    final dotPaint = Paint()
+      ..color = dotColor
+      ..style = PaintingStyle.fill;
+
+    final diamondSize = 2.5;
+    for (double y = 50; y < size.height - 40; y += 50) {
+      final path = Path()
+        ..moveTo(cx, y - diamondSize)
+        ..lineTo(cx + diamondSize, y)
+        ..lineTo(cx, y + diamondSize)
+        ..lineTo(cx - diamondSize, y)
+        ..close();
+      canvas.drawPath(path, dotPaint);
+    }
   }
 
   @override
