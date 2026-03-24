@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/arabic_normalizer.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/smooth_scroll_physics.dart';
 import '../../models/hizb_part.dart';
@@ -31,7 +32,6 @@ class _DetailScreenState extends State<DetailScreen>
   bool _isScaling = false;
 
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _firstMatchKey = GlobalKey();
 
   late final AnimationController _animController;
   Animation<double>? _animation;
@@ -44,10 +44,13 @@ class _DetailScreenState extends State<DetailScreen>
       vsync: this,
     );
 
-    // Auto-scroll to first match after layout
+    // Auto-scroll to first match after layout is complete
     if (widget.searchQuery.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToFirstMatch();
+        // Small delay to ensure layout is fully settled
+        Future.delayed(const Duration(milliseconds: 150), () {
+          if (mounted) _scrollToFirstMatch();
+        });
       });
     }
   }
@@ -145,15 +148,29 @@ class _DetailScreenState extends State<DetailScreen>
   }
 
   void _scrollToFirstMatch() {
-    final ctx = _firstMatchKey.currentContext;
-    if (ctx != null) {
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-        alignment: 0.3, // show match at ~30% from top
-      );
-    }
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    // Find where the first match is in the content as a fraction
+    final content = widget.part.content;
+    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final normalizedQuery = normalizeArabic(widget.searchQuery);
+    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
+    if (matches.isEmpty) return;
+
+    final (matchStart, _) = matches.first;
+    final fraction = matchStart / cleanContent.length;
+
+    // Calculate target offset (proportional to content position)
+    // Subtract some to show context above the match
+    final targetOffset = (fraction * maxScroll - 80).clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -276,7 +293,6 @@ class _DetailScreenState extends State<DetailScreen>
                         fontSize: _fontSize,
                         isDark: isDark,
                         searchQuery: widget.searchQuery,
-                        firstMatchKey: widget.searchQuery.isNotEmpty ? _firstMatchKey : null,
                       ),
                     ),
                     const SizedBox(height: 20),

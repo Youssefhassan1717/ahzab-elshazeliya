@@ -254,9 +254,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                     ),
                                   ],
                                   // Content match snippet
-                                  if (widget.searchQuery.isNotEmpty &&
-                                      normalizeArabic(part.content).contains(normalizeArabic(widget.searchQuery))) ...[
-                                    const SizedBox(height: 6),
+                                  if (widget.searchQuery.isNotEmpty) ...[                                    
                                     _buildSnippet(isDark, accentColor),
                                   ],
                                 ],
@@ -314,17 +312,19 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
     final (matchStart, matchEnd) = matches.first;
 
     // Extract snippet around the match
-    const snippetRadius = 35;
+    const snippetRadius = 40;
     final start = (matchStart - snippetRadius).clamp(0, cleanContent.length);
     final end = (matchEnd + snippetRadius).clamp(0, cleanContent.length);
     final before = cleanContent.substring(start, matchStart);
-    final match = cleanContent.substring(matchStart, matchEnd);
+    final matchText = cleanContent.substring(matchStart, matchEnd);
     final after = cleanContent.substring(matchEnd, end);
 
     final prefix = start > 0 ? '...' : '';
     final suffix = end < cleanContent.length ? '...' : '';
 
-    return Container(
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: isDark ? 0.08 : 0.04),
@@ -350,7 +350,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
           children: [
             TextSpan(text: '$prefix$before'),
             TextSpan(
-              text: match,
+              text: matchText,
               style: TextStyle(
                 color: accentColor,
                 fontWeight: FontWeight.w700,
@@ -360,6 +360,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
             TextSpan(text: '$after$suffix'),
           ],
         ),
+      ),
       ),
     );
   }
