@@ -17,13 +17,18 @@ class AhzabApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            title: 'أحزاب الإمام الشاذلي',
-            themeMode: themeProvider.themeMode,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            home: const HomeScreen(),
+          return AnimatedTheme(
+            data: themeProvider.isDarkMode ? AppTheme.dark : AppTheme.light,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOutCubic,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'أحزاب الإمام الشاذلي',
+              themeMode: themeProvider.themeMode,
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              home: const HomeScreen(),
+            ),
           );
         },
       ),

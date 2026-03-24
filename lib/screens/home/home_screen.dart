@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/smooth_scroll_physics.dart';
 import '../../data/ahzab_data.dart';
+import '../../models/hizb_part.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/animated_list_item.dart';
@@ -20,6 +21,17 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _searchText = '';
+
+  // Animated list keys for smooth transitions
+  final GlobalKey<AnimatedListState> _favoritesListKey = GlobalKey<AnimatedListState>();
+  final GlobalKey<AnimatedListState> _allListKey = GlobalKey<AnimatedListState>();
+
+  // Track items in each section for animation
+  List<HizbPart> _favorites = [];
+  List<HizbPart> _allItems = [];
+
+  // Keep track of previous state to detect changes
+  Set<String> _previousFavorites = {};
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final otherList =
         filtered.where((p) => !favProvider.isFavorite(p.id)).toList();
 
+    // Detect changes and trigger animations
+    _handleFavoriteChanges(favProvider, favList, otherList);
+
     return CustomScrollView(
       physics: const SmoothScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
@@ -114,14 +129,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           SliverFixedExtentList(
-            itemExtent: 86, // 76 height + 10 vertical margin
+            itemExtent: 86,
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                return RepaintBoundary(
-                  child: AnimatedListItem(
-                    index: index,
-                    child: HizbCard(part: favList[index]),
-                  ),
+                return _buildAnimatedCard(
+                  part: favList[index],
+                  index: index,
+                  isFavorite: true,
                 );
               },
               childCount: favList.length,
@@ -142,18 +156,66 @@ class _HomeScreenState extends State<HomeScreen> {
           itemExtent: 86,
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              return RepaintBoundary(
-                child: AnimatedListItem(
-                  index: index + favList.length,
-                  child: HizbCard(part: otherList[index]),
-                ),
+              return _buildAnimatedCard(
+                part: otherList[index],
+                index: index + favList.length,
+                isFavorite: false,
               );
             },
             childCount: otherList.length,
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 80)),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
+  }
+
+  Widget _buildAnimatedCard({
+    required HizbPart part,
+    required int index,
+    required bool isFavorite,
+  }) {
+    return RepaintBoundary(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 300 + (index * 30).clamp(0, 200)),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Transform.translate(
+            offset: Offset(30 * (1 - value), 0),
+            child: Opacity(
+              opacity: value,
+              child: child,
+            ),
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOutCubic,
+          child: HizbCard(
+            part: part,
+            isFavorite: isFavorite,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleFavoriteChanges(
+    FavoritesProvider favProvider,
+    List<HizbPart> newFavorites,
+    List<HizbPart> newOthers,
+  ) {
+    final currentFavorites = favProvider.favorites;
+
+    // Check for new favorites (added)
+    for (final id in currentFavorites) {
+      if (!_previousFavorites.contains(id)) {
+        // New favorite added - could trigger animation here
+        HapticFeedback.mediumImpact();
+      }
+    }
+
+    _previousFavorites = currentFavorites;
   }
 }
