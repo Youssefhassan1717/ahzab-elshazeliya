@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../core/arabic_normalizer.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../models/hizb_part.dart';
 import '../../../providers/favorites_provider.dart';
@@ -254,7 +255,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                   ],
                                   // Content match snippet
                                   if (widget.searchQuery.isNotEmpty &&
-                                      part.content.contains(widget.searchQuery)) ...[
+                                      normalizeArabic(part.content).contains(normalizeArabic(widget.searchQuery))) ...[
                                     const SizedBox(height: 6),
                                     _buildSnippet(isDark, accentColor),
                                   ],
@@ -304,18 +305,21 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
 
   Widget _buildSnippet(bool isDark, Color accentColor) {
     final query = widget.searchQuery;
+    final normalizedQuery = normalizeArabic(query);
     // Clean content (remove §SECTION§ markers)
     final cleanContent = part.content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ');
-    final matchIndex = cleanContent.indexOf(query);
-    if (matchIndex < 0) return const SizedBox.shrink();
+    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
+    if (matches.isEmpty) return const SizedBox.shrink();
+
+    final (matchStart, matchEnd) = matches.first;
 
     // Extract snippet around the match
     const snippetRadius = 35;
-    final start = (matchIndex - snippetRadius).clamp(0, cleanContent.length);
-    final end = (matchIndex + query.length + snippetRadius).clamp(0, cleanContent.length);
-    final before = cleanContent.substring(start, matchIndex);
-    final match = cleanContent.substring(matchIndex, matchIndex + query.length);
-    final after = cleanContent.substring(matchIndex + query.length, end);
+    final start = (matchStart - snippetRadius).clamp(0, cleanContent.length);
+    final end = (matchEnd + snippetRadius).clamp(0, cleanContent.length);
+    final before = cleanContent.substring(start, matchStart);
+    final match = cleanContent.substring(matchStart, matchEnd);
+    final after = cleanContent.substring(matchEnd, end);
 
     final prefix = start > 0 ? '...' : '';
     final suffix = end < cleanContent.length ? '...' : '';

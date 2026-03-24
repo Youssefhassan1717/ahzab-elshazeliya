@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/smooth_scroll_physics.dart';
+import '../../core/arabic_normalizer.dart';
 import '../../data/ahzab_data.dart';
 import '../../models/hizb_part.dart';
 import '../../providers/favorites_provider.dart';
@@ -111,11 +112,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildContent(FavoritesProvider favProvider, bool isDark) {
+    final normalizedQuery = normalizeArabic(_searchText);
     final filtered = allParts.where((p) {
       if (_searchText.isEmpty) return true;
-      return p.title.contains(_searchText) ||
-          (p.subtitle?.contains(_searchText) ?? false) ||
-          p.content.contains(_searchText);
+      return normalizeArabic(p.title).contains(normalizedQuery) ||
+          (p.subtitle != null && normalizeArabic(p.subtitle!).contains(normalizedQuery)) ||
+          normalizeArabic(p.content).contains(normalizedQuery);
     }).toList();
 
     final favList =

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/arabic_normalizer.dart';
 import '../../../core/theme/app_colors.dart';
 
 class ContentBody extends StatelessWidget {
@@ -220,13 +221,14 @@ class ContentBody extends StatelessWidget {
   Widget _buildContent() {
     // Track whether we've placed the firstMatchKey
     bool keyPlaced = false;
+    final normalizedQuery = searchQuery.isNotEmpty ? normalizeArabic(searchQuery) : '';
 
     Widget buildText(String text) {
       final widget = _buildBodyText(text);
       if (!keyPlaced &&
           firstMatchKey != null &&
-          searchQuery.isNotEmpty &&
-          text.contains(searchQuery)) {
+          normalizedQuery.isNotEmpty &&
+          normalizeArabic(text).contains(normalizedQuery)) {
         keyPlaced = true;
         return Container(key: firstMatchKey, child: widget);
       }
@@ -270,33 +272,39 @@ class ContentBody extends StatelessWidget {
       letterSpacing: 0.3,
     );
 
-    if (searchQuery.isEmpty || !text.contains(searchQuery)) {
+    if (searchQuery.isEmpty) {
       return Text(text, style: baseStyle, textAlign: TextAlign.justify);
     }
 
-    // Build highlighted spans
+    final normalizedQuery = normalizeArabic(searchQuery);
+    final matches = findNormalizedMatches(text, normalizedQuery);
+
+    if (matches.isEmpty) {
+      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
+    }
+
+    // Build highlighted spans using original text coordinates
     final highlightColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final spans = <TextSpan>[];
-    int start = 0;
+    int cursor = 0;
 
-    while (start < text.length) {
-      final matchIndex = text.indexOf(searchQuery, start);
-      if (matchIndex < 0) {
-        spans.add(TextSpan(text: text.substring(start)));
-        break;
-      }
-      if (matchIndex > start) {
-        spans.add(TextSpan(text: text.substring(start, matchIndex)));
+    for (final (matchStart, matchEnd) in matches) {
+      if (matchStart > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, matchStart)));
       }
       spans.add(TextSpan(
-        text: text.substring(matchIndex, matchIndex + searchQuery.length),
+        text: text.substring(matchStart, matchEnd),
         style: TextStyle(
           color: isDark ? AppColors.darkBackground : Colors.white,
           fontWeight: FontWeight.w700,
           backgroundColor: highlightColor.withValues(alpha: 0.85),
         ),
       ));
-      start = matchIndex + searchQuery.length;
+      cursor = matchEnd;
+    }
+
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
     }
 
     return Text.rich(
