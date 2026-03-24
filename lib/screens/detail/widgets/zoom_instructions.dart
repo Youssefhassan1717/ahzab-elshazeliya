@@ -44,7 +44,7 @@ class ZoomInstructions extends StatelessWidget {
             child: Text(
               'استخدم إصبعين للتكبير • انقر نقرتين للعودة للحجم الافتراضي',
               style: TextStyle(
-                fontFamily: 'NotoNaskhArabic',
+                fontFamily: 'ScheherazadeNew',
                 color: AppColors.emeraldGreen,
                 fontSize: 12,
                 height: 1.5,

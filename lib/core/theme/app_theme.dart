@@ -42,6 +42,11 @@ class AppTheme {
             : SystemUiOverlayStyle.dark,
       ),
       textTheme: _buildTextTheme(isDark),
+      textSelectionTheme: TextSelectionThemeData(
+        selectionColor: AppColors.emeraldGreen.withValues(alpha: 0.25),
+        selectionHandleColor: AppColors.emeraldGreen,
+        cursorColor: AppColors.emeraldGreen,
+      ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.emeraldGreen,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -64,12 +69,12 @@ class AppTheme {
       titleLarge: TextStyle(fontFamily: 'Amiri', color: color),
       titleMedium: TextStyle(fontFamily: 'Amiri', color: color),
       titleSmall: TextStyle(fontFamily: 'Amiri', color: color),
-      bodyLarge: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
-      bodyMedium: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
-      bodySmall: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
-      labelLarge: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
-      labelMedium: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
-      labelSmall: TextStyle(fontFamily: 'NotoNaskhArabic', color: color),
+      bodyLarge: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
+      bodyMedium: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
+      bodySmall: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
+      labelLarge: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
+      labelMedium: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
+      labelSmall: TextStyle(fontFamily: 'ScheherazadeNew', color: color),
     );
   }
 }

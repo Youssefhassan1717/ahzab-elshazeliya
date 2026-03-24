@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,6 @@ import '../../data/ahzab_data.dart';
 import '../../models/hizb_part.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../widgets/animated_list_item.dart';
 import 'widgets/hizb_card.dart';
 import 'widgets/search_bar.dart';
 import 'widgets/section_header.dart';
@@ -21,17 +21,32 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _searchText = '';
+  Timer? _debounce;
+  bool _initialAnimationDone = false;
 
-  // Animated list keys for smooth transitions
-  final GlobalKey<AnimatedListState> _favoritesListKey = GlobalKey<AnimatedListState>();
-  final GlobalKey<AnimatedListState> _allListKey = GlobalKey<AnimatedListState>();
+  @override
+  void initState() {
+    super.initState();
+    // Mark initial animation done after first frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) setState(() => _initialAnimationDone = true);
+      });
+    });
+  }
 
-  // Track items in each section for animation
-  List<HizbPart> _favorites = [];
-  List<HizbPart> _allItems = [];
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
-  // Keep track of previous state to detect changes
-  Set<String> _previousFavorites = {};
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _searchText = value);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,11 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: Column(
           children: [
-            HizbSearchBar(
-              onChanged: (value) {
-                setState(() => _searchText = value);
-              },
-            ),
+            HizbSearchBar(onChanged: _onSearchChanged),
             Expanded(
               child: Consumer<FavoritesProvider>(
                 builder: (context, favProvider, _) {
@@ -110,112 +121,186 @@ class _HomeScreenState extends State<HomeScreen> {
     final otherList =
         filtered.where((p) => !favProvider.isFavorite(p.id)).toList();
 
-    // Detect changes and trigger animations
-    _handleFavoriteChanges(favProvider, favList, otherList);
+    // Build a flat list of items: [fav header?, fav cards..., spacer?, all header, all cards..., bottom spacer]
+    final items = <_ListItem>[];
+
+    if (favList.isNotEmpty) {
+      items.add(_ListItem.header(key: 'header_fav', widget: SectionHeader(
+        title: 'مميز',
+        icon: Icons.favorite,
+        color: Colors.red.shade600,
+      )));
+      for (final part in favList) {
+        items.add(_ListItem.card(part: part, isFavorite: true));
+      }
+      items.add(const _ListItem.spacer(key: 'spacer_fav', height: 16));
+    }
+
+    items.add(_ListItem.header(key: 'header_all', widget: SectionHeader(
+      title: 'جميع الأحزاب',
+      icon: Icons.menu_book,
+      color: AppColors.emeraldGreen,
+    )));
+    for (final part in otherList) {
+      items.add(_ListItem.card(part: part, isFavorite: false));
+    }
+    items.add(const _ListItem.spacer(key: 'spacer_bottom', height: 24));
 
     return CustomScrollView(
       physics: const SmoothScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
-      cacheExtent: 1200,
+      cacheExtent: 600,
       slivers: [
-        // Favorites section
-        if (favList.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              title: 'مميز',
-              icon: Icons.favorite,
-              color: Colors.red.shade600,
-            ),
-          ),
-          SliverFixedExtentList(
-            itemExtent: 86,
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                return _buildAnimatedCard(
-                  part: favList[index],
-                  index: index,
-                  isFavorite: true,
-                );
-              },
-              childCount: favList.length,
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-        ],
-
-        // All ahzab section
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: 'جميع الأحزاب',
-            icon: Icons.menu_book,
-            color: AppColors.emeraldGreen,
-          ),
-        ),
-        SliverFixedExtentList(
-          itemExtent: 86,
+        SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              return _buildAnimatedCard(
-                part: otherList[index],
-                index: index + favList.length,
-                isFavorite: false,
-              );
+              final item = items[index];
+              switch (item.type) {
+                case _ItemType.header:
+                  return item.widget!;
+                case _ItemType.spacer:
+                  return SizedBox(height: item.height);
+                case _ItemType.card:
+                  return _CardWrapper(
+                    key: ValueKey(item.part!.id),
+                    staggerIndex: _initialAnimationDone ? -1 : index,
+                    child: HizbCard(
+                      part: item.part!,
+                      isFavorite: item.isFavorite,
+                    ),
+                  );
+              }
             },
-            childCount: otherList.length,
+            childCount: items.length,
+            findChildIndexCallback: (key) {
+              // Help Flutter find cards by key so it can reuse them across rebuilds
+              if (key is ValueKey<String>) {
+                for (int i = 0; i < items.length; i++) {
+                  if (items[i].type == _ItemType.card && items[i].part!.id == key.value) {
+                    return i;
+                  }
+                }
+              }
+              return null;
+            },
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
+}
 
-  Widget _buildAnimatedCard({
-    required HizbPart part,
-    required int index,
-    required bool isFavorite,
-  }) {
+enum _ItemType { header, spacer, card }
+
+class _ListItem {
+  final _ItemType type;
+  final String? key;
+  final Widget? widget;
+  final double? height;
+  final HizbPart? part;
+  final bool isFavorite;
+
+  const _ListItem._({
+    required this.type,
+    this.key,
+    this.widget,
+    this.height,
+    this.part,
+    this.isFavorite = false,
+  });
+
+  _ListItem.header({required String key, required Widget widget})
+      : this._(type: _ItemType.header, key: key, widget: widget);
+
+  const _ListItem.spacer({required String key, required double height})
+      : this._(type: _ItemType.spacer, key: key, height: height);
+
+  _ListItem.card({required HizbPart part, required bool isFavorite})
+      : this._(type: _ItemType.card, part: part, isFavorite: isFavorite);
+}
+
+/// Card wrapper that handles:
+/// 1. One-shot stagger animation on initial app load (staggerIndex >= 0)
+/// 2. Smooth animated transition when moving between sections (staggerIndex == -1)
+///
+/// Uses the same key (part.id) regardless of section, so Flutter reuses the
+/// Element when a card moves from favorites↔all — no dispose/recreate.
+class _CardWrapper extends StatefulWidget {
+  final int staggerIndex;
+  final Widget child;
+
+  const _CardWrapper({
+    super.key,
+    required this.staggerIndex,
+    required this.child,
+  });
+
+  @override
+  State<_CardWrapper> createState() => _CardWrapperState();
+}
+
+class _CardWrapperState extends State<_CardWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+  bool _hasAnimated = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.12, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
+
+    if (widget.staggerIndex >= 0) {
+      // Initial app load: staggered entrance
+      final delay = (widget.staggerIndex * 35).clamp(0, 280);
+      Future.delayed(Duration(milliseconds: delay), () {
+        if (mounted) {
+          _controller.forward();
+          _hasAnimated = true;
+        }
+      });
+    } else {
+      // After initial load: appear instantly
+      _controller.value = 1.0;
+      _hasAnimated = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return RepaintBoundary(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: Duration(milliseconds: 300 + (index * 30).clamp(0, 200)),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Transform.translate(
-            offset: Offset(30 * (1 - value), 0),
-            child: Opacity(
-              opacity: value,
-              child: child,
-            ),
-          );
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOutCubic,
-          child: HizbCard(
-            part: part,
-            isFavorite: isFavorite,
-          ),
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: widget.child,
         ),
       ),
     );
-  }
-
-  void _handleFavoriteChanges(
-    FavoritesProvider favProvider,
-    List<HizbPart> newFavorites,
-    List<HizbPart> newOthers,
-  ) {
-    final currentFavorites = favProvider.favorites;
-
-    // Check for new favorites (added)
-    for (final id in currentFavorites) {
-      if (!_previousFavorites.contains(id)) {
-        // New favorite added - could trigger animation here
-        HapticFeedback.mediumImpact();
-      }
-    }
-
-    _previousFavorites = currentFavorites;
   }
 }

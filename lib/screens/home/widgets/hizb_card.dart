@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../models/hizb_part.dart';
 import '../../../providers/favorites_provider.dart';
-import '../../../widgets/islamic_icon.dart';
 import '../../detail/detail_screen.dart';
 
 class HizbCard extends StatefulWidget {
@@ -21,10 +20,14 @@ class HizbCard extends StatefulWidget {
   State<HizbCard> createState() => _HizbCardState();
 }
 
-class _HizbCardState extends State<HizbCard> with SingleTickerProviderStateMixin {
+class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
   late final AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
+
+  // Press feedback
+  late final AnimationController _pressController;
+  late final Animation<double> _pressScale;
   
   bool _wasFavorite = false;
   
@@ -50,6 +53,15 @@ class _HizbCardState extends State<HizbCard> with SingleTickerProviderStateMixin
     
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.0).animate(
       CurvedAnimation(parent: _slideController, curve: Curves.elasticOut),
+    );
+
+    _pressController = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      reverseDuration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _pressScale = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
     );
   }
 
@@ -88,127 +100,196 @@ class _HizbCardState extends State<HizbCard> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _slideController.dispose();
+    _pressController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
 
-    return SlideTransition(
+    return ScaleTransition(
+      scale: _pressScale,
+      child: SlideTransition(
       position: _slideAnimation,
       child: ScaleTransition(
         scale: _scaleAnimation,
-        child: Container(
-          height: 76,
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
               borderRadius: BorderRadius.circular(16),
-              onTap: () => _navigateToDetail(context),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: Row(
-                  children: [
-                    // Islamic icon
-                    IslamicIcon(
-                      size: 32,
-                      color: AppColors.emeraldGreen,
-                      withBackground: true,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Book icon circle
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primaryGreen, AppColors.emeraldGreen],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(21),
-                      ),
-                      child: const Icon(Icons.menu_book, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Title & subtitle
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            part.title,
-                            style: const TextStyle(
-                              fontFamily: 'Amiri',
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.emeraldGreen,
-                              fontSize: 15,
-                              height: 1.3,
+              border: Border.all(
+                color: accentColor.withValues(alpha: 0.1),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.25)
+                      : accentColor.withValues(alpha: 0.07),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                splashColor: accentColor.withValues(alpha: 0.08),
+                highlightColor: accentColor.withValues(alpha: 0.04),
+                onTapDown: (_) => _pressController.forward(),
+                onTapUp: (_) {
+                  _pressController.reverse();
+                  _navigateToDetail(context);
+                },
+                onTapCancel: () => _pressController.reverse(),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    children: [
+                      // Subtle top accent bar
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        left: 0,
+                        child: Container(
+                          height: 2.5,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                accentColor.withValues(alpha: 0.0),
+                                accentColor.withValues(alpha: 0.35),
+                                accentColor.withValues(alpha: 0.0),
+                              ],
                             ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
                           ),
-                          if (part.subtitle != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              part.subtitle!,
-                              style: TextStyle(
-                                fontFamily: 'NotoNaskhArabic',
-                                fontSize: 12,
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.lightTextSecondary,
-                                height: 1.2,
+                        ),
+                      ),
+                      // Card content
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            // Islamic ornament icon
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    accentColor.withValues(alpha: 0.12),
+                                    accentColor.withValues(alpha: 0.03),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: accentColor.withValues(alpha: 0.18),
+                                  width: 1.2,
+                                ),
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                              child: Center(
+                                child: Text(
+                                  '۞',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    color: accentColor,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+
+                            // Title & subtitle
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Hero(
+                                    tag: 'hizb_title_${part.id}',
+                                    flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
+                                      return DefaultTextStyle(
+                                        style: DefaultTextStyle.of(toHeroContext).style,
+                                        child: toHeroContext.widget,
+                                      );
+                                    },
+                                    child: Text(
+                                      part.title,
+                                      style: TextStyle(
+                                        fontFamily: 'Amiri',
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark
+                                            ? AppColors.darkTextPrimary
+                                            : AppColors.lightTextPrimary,
+                                        fontSize: 17,
+                                        height: 1.4,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  if (part.subtitle != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      part.subtitle!,
+                                      style: TextStyle(
+                                        fontFamily: 'ScheherazadeNew',
+                                        fontSize: 12.5,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                        height: 1.3,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+
+                            // Favorite button
+                            Consumer<FavoritesProvider>(
+                              builder: (context, favProvider, _) {
+                                final isFav = favProvider.isFavorite(part.id);
+                                return _FavoriteButton(
+                                  isFavorite: isFav,
+                                  isDark: isDark,
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    favProvider.toggleFavorite(part.id, context);
+                                  },
+                                );
+                              },
+                            ),
+
+                            // Arrow indicator (RTL → left chevron)
+                            const SizedBox(width: 2),
+                            Icon(
+                              Icons.chevron_left,
+                              size: 20,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary.withValues(alpha: 0.4)
+                                  : AppColors.lightTextSecondary.withValues(alpha: 0.4),
                             ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-
-                    // Favorite button
-                    Consumer<FavoritesProvider>(
-                      builder: (context, favProvider, _) {
-                        final isFav = favProvider.isFavorite(part.id);
-                        return _FavoriteButton(
-                          isFavorite: isFav,
-                          isDark: isDark,
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            favProvider.toggleFavorite(part.id, context);
-                          },
-                        );
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -219,39 +300,26 @@ class _HizbCardState extends State<HizbCard> with SingleTickerProviderStateMixin
       PageRouteBuilder(
         pageBuilder: (_, animation, secondaryAnimation) => DetailScreen(part: part),
         transitionsBuilder: (_, animation, secondaryAnimation, child) {
-          // Curved animation for smooth feel
           final curvedAnimation = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
             reverseCurve: Curves.easeInCubic,
           );
 
-          // Slide from right with overshoot
-          final slideTween = Tween(
-            begin: const Offset(0.3, 0.0),
-            end: Offset.zero,
-          );
-
-          // Fade in with delay
-          final fadeTween = Tween<double>(begin: 0.0, end: 1.0);
-
-          // Scale up from 0.9
-          final scaleTween = Tween<double>(begin: 0.9, end: 1.0);
-
-          // Combine all transitions
-          return FadeTransition(
-            opacity: fadeTween.animate(curvedAnimation),
-            child: ScaleTransition(
-              scale: scaleTween.animate(curvedAnimation),
-              child: SlideTransition(
-                position: slideTween.animate(curvedAnimation),
-                child: child,
-              ),
+          // RTL: slide from left (negative X)
+          return SlideTransition(
+            position: Tween(
+              begin: const Offset(-0.25, 0.0),
+              end: Offset.zero,
+            ).animate(curvedAnimation),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curvedAnimation),
+              child: child,
             ),
           );
         },
-        transitionDuration: const Duration(milliseconds: 350),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
       ),
     );
   }

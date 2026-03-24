@@ -38,7 +38,7 @@ class FavoritesProvider extends ChangeNotifier {
           SnackBar(
             content: const Text(
               'الحد الأقصى للأحزاب المميزة هو ٤. قم بإزالة واحد لإضافة آخر.',
-              style: TextStyle(fontFamily: 'NotoNaskhArabic'),
+              style: TextStyle(fontFamily: 'ScheherazadeNew'),
             ),
             backgroundColor: AppColors.emeraldGreen,
           ),

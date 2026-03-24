@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Smooth scrolling physics with custom deceleration for a natural feel.
-/// Uses iOS-style momentum with tuned friction for Arabic content reading.
+/// Ultra-smooth iOS-style scrolling physics.
+/// Uses BouncingScrollSimulation for buttery momentum and natural bounce.
 class SmoothScrollPhysics extends ScrollPhysics {
   const SmoothScrollPhysics({super.parent});
 
@@ -12,18 +12,31 @@ class SmoothScrollPhysics extends ScrollPhysics {
 
   @override
   SpringDescription get spring => const SpringDescription(
-        mass: 0.5,
-        stiffness: 90.0,
-        damping: 14.0,
+        mass: 0.3,
+        stiffness: 100.0,
+        damping: 16.0,
       );
 
   @override
   double get dragStartDistanceMotionThreshold => 3.5;
 
   @override
+  double get minFlingVelocity => 50.0;
+
+  @override
+  double get maxFlingVelocity => 8000.0;
+
+  @override
   double carriedMomentum(double existingVelocity) {
+    // Higher momentum carry = longer, smoother glide
     return existingVelocity.sign *
-        (existingVelocity.abs() * 0.4).clamp(0.0, 600.0);
+        (existingVelocity.abs() * 0.5).clamp(0.0, 800.0);
+  }
+
+  @override
+  double frictionFactor(double overscrollFraction) {
+    // Gentle rubber-band resistance when overscrolling
+    return 0.52 * (1.0 - overscrollFraction * overscrollFraction).clamp(0.0, 1.0);
   }
 
   @override
@@ -31,23 +44,17 @@ class SmoothScrollPhysics extends ScrollPhysics {
       ScrollMetrics position, double velocity) {
     final tolerance = toleranceFor(position);
 
-    if (position.outOfRange) {
-      return BouncingScrollSimulation(
-        spring: spring,
-        position: position.pixels,
-        velocity: velocity,
-        leadingExtent: position.minScrollExtent,
-        trailingExtent: position.maxScrollExtent,
-        tolerance: tolerance,
-      );
+    if (velocity.abs() < tolerance.velocity && !position.outOfRange) {
+      return null;
     }
 
-    if (velocity.abs() < tolerance.velocity) return null;
-
-    return ClampingScrollSimulation(
+    // Always use BouncingScrollSimulation for smooth iOS-style momentum + bounce
+    return BouncingScrollSimulation(
+      spring: spring,
       position: position.pixels,
       velocity: velocity,
-      friction: 0.015,
+      leadingExtent: position.minScrollExtent,
+      trailingExtent: position.maxScrollExtent,
       tolerance: tolerance,
     );
   }

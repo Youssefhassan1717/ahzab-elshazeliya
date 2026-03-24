@@ -32,12 +32,12 @@ class ContentBody extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(24),
       child: content.isNotEmpty
-          ? SelectableText(
+          ? Text(
               content,
               style: TextStyle(
-                fontFamily: 'NotoNaskhArabic',
+                fontFamily: 'ScheherazadeNew',
                 fontSize: fontSize,
-                height: 2.1,
+                height: 2.2,
                 color: isDark
                     ? AppColors.darkTextPrimary
                     : AppColors.lightTextPrimary,
@@ -72,7 +72,7 @@ class ContentBody extends StatelessWidget {
           Text(
             'لا يوجد محتوى متاح حاليًا',
             style: TextStyle(
-              fontFamily: 'NotoNaskhArabic',
+              fontFamily: 'ScheherazadeNew',
               color: isDark
                   ? AppColors.darkTextSecondary
                   : AppColors.lightTextSecondary,
@@ -85,7 +85,7 @@ class ContentBody extends StatelessWidget {
           Text(
             'سيتم إضافة المحتوى قريبًا إن شاء الله',
             style: TextStyle(
-              fontFamily: 'NotoNaskhArabic',
+              fontFamily: 'ScheherazadeNew',
               color: isDark
                   ? AppColors.darkTextSecondary.withValues(alpha: 0.7)
                   : AppColors.lightTextSecondary.withValues(alpha: 0.7),

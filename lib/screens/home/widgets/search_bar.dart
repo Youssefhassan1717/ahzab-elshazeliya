@@ -30,7 +30,7 @@ class HizbSearchBar extends StatelessWidget {
         decoration: InputDecoration(
           hintText: 'ابحث باسم الحزب...',
           hintStyle: TextStyle(
-            fontFamily: 'NotoNaskhArabic',
+            fontFamily: 'ScheherazadeNew',
             color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             fontSize: 16,
           ),
@@ -44,7 +44,7 @@ class HizbSearchBar extends StatelessWidget {
               const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         ),
         style: TextStyle(
-          fontFamily: 'NotoNaskhArabic',
+          fontFamily: 'ScheherazadeNew',
           fontSize: 16,
           color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
         ),

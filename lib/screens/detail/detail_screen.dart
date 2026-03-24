@@ -21,94 +21,65 @@ class DetailScreen extends StatefulWidget {
 
 class _DetailScreenState extends State<DetailScreen>
     with TickerProviderStateMixin {
-  static const double _initialFontSize = 22;
-  static const double _maxFontSize = 48;
+  static const double _baseFontSize = 22.0;
+  static const double _minFontSize = 14.0;
+  static const double _maxFontSize = 56.0;
 
-  double _fontSize = _initialFontSize;
-
-  double _baseScaleFactor = 1.0;
+  double _fontSize = _baseFontSize;
+  double _previousScale = 1.0;
   bool _isScaling = false;
 
-  late final AnimationController _zoomAnimController;
-  Animation<double>? _zoomAnimation;
+  final ScrollController _scrollController = ScrollController();
+
+  late final AnimationController _animController;
+  Animation<double>? _animation;
 
   @override
   void initState() {
     super.initState();
-    _zoomAnimController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
   }
 
   @override
   void dispose() {
-    _zoomAnimController.dispose();
+    _animController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  /// Smoothly animate font size to a target value
-  void _animateFontSizeTo(double target, {Duration? duration}) {
-    final start = _fontSize;
-    final clampedTarget = target.clamp(_initialFontSize, _maxFontSize);
-
-    if ((clampedTarget - start).abs() < 0.1) return;
-
-    _zoomAnimController.duration =
-        duration ?? const Duration(milliseconds: 300);
-
-    _zoomAnimation = Tween<double>(
-      begin: start,
-      end: clampedTarget,
-    ).animate(CurvedAnimation(
-      parent: _zoomAnimController,
-      curve: Curves.easeOutCubic,
-    ));
-
-    _zoomAnimation!.addListener(_onZoomAnimationTick);
-    _zoomAnimController.forward(from: 0).then((_) {
-      _zoomAnimation?.removeListener(_onZoomAnimationTick);
-    });
-  }
-
-  void _onZoomAnimationTick() {
-    if (_zoomAnimation != null) {
-      setState(() {
-        _fontSize = _zoomAnimation!.value;
-      });
-    }
-  }
-
-  void _resetZoom() {
-    if (_fontSize == _initialFontSize) return;
-    HapticFeedback.lightImpact();
-    _animateFontSizeTo(_initialFontSize, duration: const Duration(milliseconds: 400));
-  }
-
   void _onScaleStart(ScaleStartDetails details) {
-    if (details.pointerCount >= 2) {
-      _isScaling = true;
-      _baseScaleFactor = _fontSize / _initialFontSize;
-      // Stop any running animation
-      _zoomAnimController.stop();
-      _zoomAnimation?.removeListener(_onZoomAnimationTick);
-    }
+    if (details.pointerCount < 2) return;
+    
+    _isScaling = true;
+    _previousScale = _fontSize / _baseFontSize;
+    
+    // Stop any running animation
+    _animController.stop();
+    _animation?.removeListener(_onAnimationTick);
+    
+    // Force rebuild to disable scroll physics during pinch
+    setState(() {});
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (!_isScaling || details.pointerCount < 2) return;
 
+    // currentScale = previousScale * gestureScale
+    final currentScale = _previousScale * details.scale;
+    
     // Exponential scaling for natural feel
-    final rawScale = _baseScaleFactor * details.scale;
-    // Apply easing: use log scale for smoother feel at extremes
-    final easedScale = math.pow(rawScale, 0.85).toDouble();
-    final newSize =
-        (_initialFontSize * easedScale).clamp(_initialFontSize, _maxFontSize);
+    final exponentialScale = math.pow(currentScale, 1.15).toDouble();
+    
+    // Clamp and calculate font size directly — no lerp lag
+    final newFontSize = (_baseFontSize * exponentialScale).clamp(_minFontSize, _maxFontSize);
 
-    // Only update if change is visible (avoid micro-jitter)
-    if ((newSize - _fontSize).abs() > 0.15) {
+    // Only rebuild if change is visible
+    if ((newFontSize - _fontSize).abs() > 0.05) {
       setState(() {
-        _fontSize = newSize;
+        _fontSize = newFontSize;
       });
     }
   }
@@ -117,12 +88,51 @@ class _DetailScreenState extends State<DetailScreen>
     if (!_isScaling) return;
     _isScaling = false;
 
-    // Snap to nearest whole font size for crisp rendering
-    final snapped = _fontSize.roundToDouble();
-    final clamped = snapped.clamp(_initialFontSize, _maxFontSize);
+    // Save current scale for next gesture
+    _previousScale = _fontSize / _baseFontSize;
+
+    // Force rebuild to re-enable scroll physics
+    setState(() {});
+
+    // Snap to nearest 0.5 for crisp rendering
+    final snapped = (_fontSize * 2).roundToDouble() / 2;
+    final clamped = snapped.clamp(_minFontSize, _maxFontSize);
+    
     if ((clamped - _fontSize).abs() > 0.3) {
-      _animateFontSizeTo(clamped, duration: const Duration(milliseconds: 150));
+      _animateToFontSize(clamped, const Duration(milliseconds: 120));
     }
+  }
+
+  void _animateToFontSize(double target, Duration duration) {
+    _animController.duration = duration;
+    
+    _animation = Tween<double>(
+      begin: _fontSize,
+      end: target,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _animation!.addListener(_onAnimationTick);
+    _animController.forward(from: 0).then((_) {
+      _animation?.removeListener(_onAnimationTick);
+    });
+  }
+
+  void _onAnimationTick() {
+    if (_animation != null) {
+      setState(() {
+        _fontSize = _animation!.value;
+      });
+    }
+  }
+
+  void _resetZoom() {
+    if (_fontSize == _baseFontSize) return;
+    HapticFeedback.lightImpact();
+    _previousScale = 1.0;
+    _animateToFontSize(_baseFontSize, const Duration(milliseconds: 300));
   }
 
   @override
@@ -133,15 +143,24 @@ class _DetailScreenState extends State<DetailScreen>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            widget.part.title,
-            style: TextStyle(
-              fontFamily: 'Amiri',
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: isDark
-                  ? AppColors.darkTextPrimary
-                  : AppColors.lightTextPrimary,
+          title: Hero(
+            tag: 'hizb_title_${widget.part.id}',
+            flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
+              return DefaultTextStyle(
+                style: DefaultTextStyle.of(toHeroContext).style,
+                child: toHeroContext.widget,
+              );
+            },
+            child: Text(
+              widget.part.title,
+              style: TextStyle(
+                fontFamily: 'Amiri',
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.lightTextPrimary,
+              ),
             ),
           ),
           actions: [
@@ -176,37 +195,51 @@ class _DetailScreenState extends State<DetailScreen>
             ),
           ],
         ),
-        body: GestureDetector(
-          onDoubleTap: _resetZoom,
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          onScaleEnd: _onScaleEnd,
-          child: SingleChildScrollView(
-            physics: const SmoothScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
+        body: Theme(
+          data: Theme.of(context).copyWith(
+            textSelectionTheme: TextSelectionThemeData(
+              selectionColor: AppColors.emeraldGreen.withValues(alpha: 0.25),
+              selectionHandleColor: AppColors.emeraldGreen,
+              cursorColor: AppColors.emeraldGreen,
             ),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                RepaintBoundary(
-                  child: DetailHeader(
-                    title: widget.part.title,
-                    subtitle: widget.part.subtitle,
-                    fontSize: _fontSize,
-                  ),
+          ),
+          child: SelectionArea(
+            child: GestureDetector(
+              onDoubleTap: _resetZoom,
+              onScaleStart: _onScaleStart,
+              onScaleUpdate: _onScaleUpdate,
+              onScaleEnd: _onScaleEnd,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: _isScaling
+                    ? const NeverScrollableScrollPhysics()
+                    : const SmoothScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    RepaintBoundary(
+                      child: DetailHeader(
+                        title: widget.part.title,
+                        subtitle: widget.part.subtitle,
+                        fontSize: _fontSize,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    RepaintBoundary(
+                      child: ContentBody(
+                        content: widget.part.content,
+                        fontSize: _fontSize,
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const ZoomInstructions(),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                RepaintBoundary(
-                  child: ContentBody(
-                    content: widget.part.content,
-                    fontSize: _fontSize,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const ZoomInstructions(),
-              ],
+              ),
             ),
           ),
         ),
@@ -226,7 +259,7 @@ class _DetailScreenState extends State<DetailScreen>
         content: Text(
           'تم نسخ المحتوى بنجاح',
           style: TextStyle(
-            fontFamily: 'NotoNaskhArabic',
+            fontFamily: 'ScheherazadeNew',
             color: isDark ? AppColors.darkTextPrimary : Colors.white,
           ),
         ),
