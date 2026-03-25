@@ -34,6 +34,10 @@ class _DetailScreenState extends State<DetailScreen>
   bool _isScaling = false;
   String? _highlightText; // Temporarily highlighted bookmark text
 
+  // Search match navigation
+  List<(int, int)> _searchMatches = [];
+  int _currentMatchIndex = 0;
+
   final ScrollController _scrollController = ScrollController();
 
   late final AnimationController _animController;
@@ -57,14 +61,66 @@ class _DetailScreenState extends State<DetailScreen>
       context.read<BookmarksProvider>().ensureLoaded(widget.part.id);
     });
 
-    // Auto-scroll to first match after layout is complete
+    // Compute all search matches and scroll to first
     if (widget.searchQuery.isNotEmpty) {
+      _computeSearchMatches();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) _scrollToFirstMatch();
+          if (mounted && _searchMatches.isNotEmpty) {
+            _scrollToMatchIndex(0);
+          }
         });
       });
     }
+  }
+
+  void _computeSearchMatches() {
+    final content = widget.part.content;
+    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final normalizedQuery = normalizeArabic(widget.searchQuery);
+    _searchMatches = findNormalizedMatches(cleanContent, normalizedQuery);
+    _currentMatchIndex = 0;
+  }
+
+  void _scrollToMatchIndex(int index) {
+    if (_searchMatches.isEmpty || !_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    setState(() => _currentMatchIndex = index);
+
+    final content = widget.part.content;
+    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final (matchStart, _) = _searchMatches[index];
+    final fraction = matchStart / cleanContent.length;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final totalScrollableHeight = maxScroll + viewportHeight;
+
+    const contentStartOffset = 270.0;
+    const contentEndPadding = 112.0;
+    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
+    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
+    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  void _nextMatch() {
+    if (_searchMatches.isEmpty) return;
+    HapticFeedback.selectionClick();
+    final next = (_currentMatchIndex + 1) % _searchMatches.length;
+    _scrollToMatchIndex(next);
+  }
+
+  void _prevMatch() {
+    if (_searchMatches.isEmpty) return;
+    HapticFeedback.selectionClick();
+    final prev = (_currentMatchIndex - 1 + _searchMatches.length) % _searchMatches.length;
+    _scrollToMatchIndex(prev);
   }
 
   @override
@@ -158,35 +214,6 @@ class _DetailScreenState extends State<DetailScreen>
     HapticFeedback.lightImpact();
     _previousScale = 1.0;
     _animateToFontSize(_baseFontSize, const Duration(milliseconds: 300));
-  }
-
-  void _scrollToFirstMatch() {
-    if (!_scrollController.hasClients) return;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    if (maxScroll <= 0) return;
-
-    final content = widget.part.content;
-    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
-    final normalizedQuery = normalizeArabic(widget.searchQuery);
-    final bestMatch = findBestSnippetMatch(cleanContent, normalizedQuery);
-    if (bestMatch == null) return;
-
-    final (matchStart, _) = bestMatch;
-    final fraction = matchStart / cleanContent.length;
-    final viewportHeight = _scrollController.position.viewportDimension;
-    final totalScrollableHeight = maxScroll + viewportHeight;
-
-    const contentStartOffset = 270.0;
-    const contentEndPadding = 112.0;
-    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
-    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
-    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
-
-    _scrollController.animateTo(
-      targetOffset,
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeInOutCubic,
-    );
   }
 
   void _scrollToText(String text) {
@@ -403,7 +430,10 @@ class _DetailScreenState extends State<DetailScreen>
             ),
           ],
         ),
-        body: Theme(
+        body: Stack(
+          children: [
+            // Main content
+            Theme(
           data: Theme.of(context).copyWith(
             textSelectionTheme: TextSelectionThemeData(
               selectionColor: AppColors.emeraldGreen.withValues(alpha: 0.25),
@@ -551,6 +581,7 @@ class _DetailScreenState extends State<DetailScreen>
                                 fontSize: _fontSize,
                                 isDark: isDark,
                                 searchQuery: widget.searchQuery,
+                                activeSearchMatchIndex: _currentMatchIndex,
                                 bookmarkedTexts: bookmarkedTexts,
                                 highlightText: _highlightText,
                                 highlightOpacity: _highlightText != null
@@ -572,6 +603,26 @@ class _DetailScreenState extends State<DetailScreen>
               ),
             ),
           ),
+        ),
+
+            // Floating search navigation bar
+            if (widget.searchQuery.isNotEmpty && _searchMatches.length > 1)
+              Positioned(
+                top: 8,
+                left: 40,
+                right: 40,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: _SearchNavBar(
+                    currentIndex: _currentMatchIndex,
+                    totalMatches: _searchMatches.length,
+                    onNext: _nextMatch,
+                    onPrev: _prevMatch,
+                    isDark: isDark,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -625,6 +676,143 @@ class _DetailScreenState extends State<DetailScreen>
           ),
         ),
         backgroundColor: AppColors.emeraldGreen,
+      ),
+    );
+  }
+}
+
+class _SearchNavBar extends StatefulWidget {
+  final int currentIndex;
+  final int totalMatches;
+  final VoidCallback onNext;
+  final VoidCallback onPrev;
+  final bool isDark;
+
+  const _SearchNavBar({
+    required this.currentIndex,
+    required this.totalMatches,
+    required this.onNext,
+    required this.onPrev,
+    required this.isDark,
+  });
+
+  @override
+  State<_SearchNavBar> createState() => _SearchNavBarState();
+}
+
+class _SearchNavBarState extends State<_SearchNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fadeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final bg = widget.isDark
+        ? const Color(0xFF132E1C).withValues(alpha: 0.95)
+        : Colors.white.withValues(alpha: 0.95);
+    final textColor = widget.isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.5),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic)),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: widget.isDark ? 0.3 : 0.1),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Previous button
+                _navButton(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  onTap: widget.onPrev,
+                  accent: accent,
+                ),
+                const SizedBox(width: 2),
+
+                // Counter
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: widget.isDark ? 0.12 : 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.currentIndex + 1} / ${widget.totalMatches}',
+                    style: TextStyle(
+                      fontFamily: 'Amiri',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 2),
+
+                // Next button
+                _navButton(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  onTap: widget.onNext,
+                  accent: accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color accent,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 22, color: accent),
+        ),
       ),
     );
   }

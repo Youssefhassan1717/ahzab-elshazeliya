@@ -8,6 +8,7 @@ class ContentBody extends StatelessWidget {
   final double fontSize;
   final bool isDark;
   final String searchQuery;
+  final int activeSearchMatchIndex;
   final List<String> bookmarkedTexts;
   final String? highlightText;
   final double highlightOpacity;
@@ -18,6 +19,7 @@ class ContentBody extends StatelessWidget {
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
+    this.activeSearchMatchIndex = 0,
     this.bookmarkedTexts = const [],
     this.highlightText,
     this.highlightOpacity = 0.0,
@@ -223,8 +225,20 @@ class ContentBody extends StatelessWidget {
   static final _sectionPattern = RegExp(r'§SECTION§(.+?)§SECTION§');
 
   Widget _buildContent() {
+    int globalSearchOffset = 0;
+
+    Widget buildText(String text) {
+      final result = _buildBodyText(text, globalSearchOffset);
+      // Count search matches in this chunk to advance the offset
+      if (searchQuery.isNotEmpty) {
+        final normalizedQuery = normalizeArabic(searchQuery);
+        globalSearchOffset += findNormalizedMatches(text, normalizedQuery).length;
+      }
+      return result;
+    }
+
     if (!content.contains('§SECTION§')) {
-      return _buildBodyText(content);
+      return buildText(content);
     }
 
     final parts = <Widget>[];
@@ -233,7 +247,7 @@ class ContentBody extends StatelessWidget {
     for (final match in _sectionPattern.allMatches(content)) {
       final before = content.substring(lastEnd, match.start).trim();
       if (before.isNotEmpty) {
-        parts.add(_buildBodyText(before));
+        parts.add(buildText(before));
       }
       parts.add(_buildSectionHeader(match.group(1)!));
       lastEnd = match.end;
@@ -241,7 +255,7 @@ class ContentBody extends StatelessWidget {
 
     final after = content.substring(lastEnd).trim();
     if (after.isNotEmpty) {
-      parts.add(_buildBodyText(after));
+      parts.add(buildText(after));
     }
 
     return Column(
@@ -250,7 +264,7 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  Widget _buildBodyText(String text) {
+  Widget _buildBodyText(String text, int searchMatchOffset) {
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
       fontSize: fontSize,
@@ -265,11 +279,16 @@ class ContentBody extends StatelessWidget {
     // Collect all highlight ranges: search matches + bookmark matches + flash highlight
     final allRanges = <_HighlightRange>[];
 
-    // Search highlighting (strongest)
+    // Search highlighting — track global match index for active highlight
+    int searchMatchCount = 0;
     if (searchQuery.isNotEmpty) {
       final normalizedQuery = normalizeArabic(searchQuery);
       for (final (start, end) in findNormalizedMatches(text, normalizedQuery)) {
-        allRanges.add(_HighlightRange(start, end, _HighlightType.search));
+        final globalIdx = searchMatchOffset + searchMatchCount;
+        final isActive = globalIdx == activeSearchMatchIndex;
+        allRanges.add(_HighlightRange(start, end,
+            isActive ? _HighlightType.searchActive : _HighlightType.search));
+        searchMatchCount++;
       }
     }
 
@@ -326,11 +345,15 @@ class ContentBody extends StatelessWidget {
 
       TextStyle hlStyle;
       switch (range.type) {
-        case _HighlightType.search:
+        case _HighlightType.searchActive:
           hlStyle = TextStyle(
             color: isDark ? AppColors.darkBackground : Colors.white,
             fontWeight: FontWeight.w700,
-            backgroundColor: accentColor.withValues(alpha: 0.85),
+            backgroundColor: accentColor.withValues(alpha: 0.9),
+          );
+        case _HighlightType.search:
+          hlStyle = TextStyle(
+            backgroundColor: accentColor.withValues(alpha: 0.25),
           );
         case _HighlightType.flash:
           // Soft glow that fades — starts strong and fades out
@@ -644,7 +667,7 @@ class _SideBorderPainter extends CustomPainter {
 }
 
 // Highlight types ordered by priority (lowest index = highest priority)
-enum _HighlightType { search, flash, bookmark }
+enum _HighlightType { searchActive, search, flash, bookmark }
 
 class _HighlightRange {
   final int start;
