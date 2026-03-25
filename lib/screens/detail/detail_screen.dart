@@ -52,9 +52,9 @@ class _DetailScreenState extends State<DetailScreen>
       vsync: this,
     );
 
-    // Preload bookmarks for this hizb
+    // Preload bookmarks for this hizb from disk
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BookmarksProvider>().getBookmarks(widget.part.id);
+      context.read<BookmarksProvider>().ensureLoaded(widget.part.id);
     });
 
     // Auto-scroll to first match after layout is complete
@@ -304,44 +304,59 @@ class _DetailScreenState extends State<DetailScreen>
             ),
           ),
           actions: [
-            // Bookmarks icon
+            // Bookmarks icon — modern style
             Consumer<BookmarksProvider>(
               builder: (context, bookProvider, _) {
                 final count = bookProvider.getCount(widget.part.id);
-                return IconButton(
-                  icon: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Icon(
-                        count > 0
-                            ? Icons.bookmark_rounded
-                            : Icons.bookmark_border_rounded,
-                        color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                final hasBookmarks = count > 0;
+                final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: _showBookmarksPanel,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: hasBookmarks
+                            ? accent.withValues(alpha: isDark ? 0.15 : 0.10)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: hasBookmarks
+                            ? Border.all(color: accent.withValues(alpha: 0.25), width: 1)
+                            : null,
                       ),
-                      if (count > 0)
-                        Positioned(
-                          top: -4,
-                          left: -4,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: isDark ? AppColors.gold : AppColors.emeraldGreen,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              '$count',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? AppColors.darkBackground : Colors.white,
-                              ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: Icon(
+                              hasBookmarks
+                                  ? Icons.auto_stories_rounded
+                                  : Icons.auto_stories_outlined,
+                              key: ValueKey(hasBookmarks),
+                              size: 20,
+                              color: accent,
                             ),
                           ),
-                        ),
-                    ],
+                          if (hasBookmarks) ...[                            
+                            const SizedBox(width: 4),
+                            Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Amiri',
+                                color: accent,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-                  tooltip: 'العلامات المميزة',
-                  onPressed: _showBookmarksPanel,
                 );
               },
             ),

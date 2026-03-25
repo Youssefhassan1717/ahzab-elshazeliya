@@ -68,11 +68,21 @@ class BookmarksProvider extends ChangeNotifier {
     return bookmarks.any((b) => b.text == text);
   }
 
+  /// Synchronous count — returns 0 if not yet loaded.
+  /// Call [ensureLoaded] first for accurate results.
   int getCount(String hizbId) {
     return _cache[hizbId]?.length ?? 0;
   }
 
   List<String> getBookmarkTexts(String hizbId) {
     return _cache[hizbId]?.map((b) => b.text).toList() ?? [];
+  }
+
+  /// Ensures bookmarks for [hizbId] are loaded from disk into cache.
+  Future<void> ensureLoaded(String hizbId) async {
+    if (!_cache.containsKey(hizbId)) {
+      await getBookmarks(hizbId);
+      notifyListeners();
+    }
   }
 }
