@@ -333,9 +333,14 @@ class ContentBody extends StatelessWidget {
             backgroundColor: accentColor.withValues(alpha: 0.85),
           );
         case _HighlightType.flash:
+          // Soft glow that fades — starts strong and fades out
+          final opacity = highlightOpacity;
           hlStyle = TextStyle(
             fontWeight: FontWeight.w700,
-            backgroundColor: accentColor.withValues(alpha: 0.4 * highlightOpacity),
+            color: opacity > 0.5
+                ? (isDark ? AppColors.darkBackground : Colors.white)
+                : null,
+            backgroundColor: accentColor.withValues(alpha: 0.7 * opacity),
           );
         case _HighlightType.bookmark:
           hlStyle = TextStyle(

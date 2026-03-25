@@ -48,7 +48,7 @@ class _DetailScreenState extends State<DetailScreen>
       vsync: this,
     );
     _highlightController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
 
@@ -165,7 +165,6 @@ class _DetailScreenState extends State<DetailScreen>
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) return;
 
-    // Find where the best match is in the content as a fraction
     final content = widget.part.content;
     final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
     final normalizedQuery = normalizeArabic(widget.searchQuery);
@@ -174,27 +173,19 @@ class _DetailScreenState extends State<DetailScreen>
 
     final (matchStart, _) = bestMatch;
     final fraction = matchStart / cleanContent.length;
-
-    // Get viewport height to center the match
     final viewportHeight = _scrollController.position.viewportDimension;
+    final totalScrollableHeight = maxScroll + viewportHeight;
 
-    // Total scrollable area = maxScroll + viewportHeight
-    // The header takes roughly 200-250px, content body takes the rest
-    // Estimate content area in scroll coordinates
-    final totalHeight = maxScroll + viewportHeight;
-    const headerEstimate = 250.0; // header + spacing before content body
-    final contentHeight = totalHeight - headerEstimate;
-
-    // Position within the content body
-    final matchScrollPos = headerEstimate + (fraction * contentHeight);
-
-    // Center the match in the viewport
-    final targetOffset = (matchScrollPos - viewportHeight * 0.4).clamp(0.0, maxScroll);
+    const contentStartOffset = 270.0;
+    const contentEndPadding = 112.0;
+    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
+    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
+    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
 
     _scrollController.animateTo(
       targetOffset,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOutCubic,
     );
   }
 
@@ -212,19 +203,28 @@ class _DetailScreenState extends State<DetailScreen>
     final (matchStart, _) = bestMatch;
     final fraction = matchStart / cleanContent.length;
     final viewportHeight = _scrollController.position.viewportDimension;
-    final totalHeight = maxScroll + viewportHeight;
-    const headerEstimate = 250.0;
-    final contentHeight = totalHeight - headerEstimate;
-    final matchScrollPos = headerEstimate + (fraction * contentHeight);
-    final targetOffset = (matchScrollPos - viewportHeight * 0.4).clamp(0.0, maxScroll);
+    final totalScrollableHeight = maxScroll + viewportHeight;
 
+    // The scroll content is: padding(12) + header(~220) + gap(20) + contentBody + gap(20) + zoomInstr(~60) + padding(32)
+    // Content body starts at roughly ~270px and ends at totalScrollableHeight - ~112
+    const contentStartOffset = 270.0;
+    const contentEndPadding = 112.0;
+    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
+
+    // Map the text fraction to a scroll position within the content body
+    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
+
+    // Center the match in the viewport (place it at ~35% from top for comfortable reading)
+    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
+
+    // Smooth two-phase scroll: fast approach then gentle settle
     _scrollController.animateTo(
       targetOffset,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOutCubic,
     );
 
-    // Briefly highlight the text
+    // Briefly highlight the text with a longer, softer glow
     setState(() => _highlightText = text);
     _highlightController.forward(from: 0).then((_) {
       if (mounted) setState(() => _highlightText = null);
