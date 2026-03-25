@@ -264,7 +264,10 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  Widget _buildBodyText(String text, int searchMatchOffset) {
+  Widget _buildBodyText(String rawText, int searchMatchOffset) {
+    // Replace newlines with spaces so text flows naturally within available width
+    final text = rawText.replaceAll('\n', ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
+
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
       fontSize: fontSize,
