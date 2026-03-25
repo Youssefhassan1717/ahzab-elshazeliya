@@ -156,10 +156,10 @@ class _DetailScreenState extends State<DetailScreen>
     final content = widget.part.content;
     final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
     final normalizedQuery = normalizeArabic(widget.searchQuery);
-    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
-    if (matches.isEmpty) return;
+    final bestMatch = findBestSnippetMatch(cleanContent, normalizedQuery);
+    if (bestMatch == null) return;
 
-    final (matchStart, _) = matches.first;
+    final (matchStart, _) = bestMatch;
     final fraction = matchStart / cleanContent.length;
 
     // Get viewport height to center the match

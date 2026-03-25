@@ -309,10 +309,10 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
         .replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
-    if (matches.isEmpty) return const SizedBox.shrink();
+    final bestMatch = findBestSnippetMatch(cleanContent, normalizedQuery);
+    if (bestMatch == null) return const SizedBox.shrink();
 
-    final (matchStart, matchEnd) = matches.first;
+    final (matchStart, matchEnd) = bestMatch;
 
     // Find word boundaries for cleaner snippet
     int snippetStart = matchStart;

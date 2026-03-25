@@ -90,3 +90,53 @@ List<(int, int)> findNormalizedMatches(String original, String normalizedQuery) 
 
   return matches;
 }
+
+/// Finds the best match for a snippet preview — prefers word-boundary matches
+/// over substring matches within longer words.
+///
+/// Scoring (higher = better):
+/// - 30: standalone word (space/start before AND space/end after)
+/// - 20: match at word start, or right after "ال" article at word start
+/// - 10: match at word end
+/// - 0: substring within a word
+///
+/// Returns null if no match found.
+(int, int)? findBestSnippetMatch(String original, String normalizedQuery) {
+  final matches = findNormalizedMatches(original, normalizedQuery);
+  if (matches.isEmpty) return null;
+
+  (int, int)? bestMatch;
+  int bestScore = -1;
+
+  for (final match in matches) {
+    final (start, end) = match;
+    int score = 0;
+
+    final atStart = start == 0 || original[start - 1] == ' ' || original[start - 1] == '\n';
+    final atEnd = end >= original.length || original[end] == ' ' || original[end] == '\n';
+
+    // Check for Arabic "ال" article prefix: if "ال" is right before the match
+    // and that "ال" is at a word boundary
+    final afterAlPrefix = start >= 2 &&
+        original[start - 1] == 'ل' &&
+        (original[start - 2] == 'ا' || _alefVariants.hasMatch(original[start - 2])) &&
+        (start - 2 == 0 || original[start - 3] == ' ' || original[start - 3] == '\n');
+
+    if (atStart || afterAlPrefix) {
+      score += 20;
+    }
+    if (atEnd) {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = match;
+    }
+
+    // Perfect standalone word match
+    if (score >= 30) break;
+  }
+
+  return bestMatch ?? matches.first;
+}
