@@ -273,18 +273,22 @@ class ContentBody extends StatelessWidget {
       }
     }
 
-    // Flash highlight from bookmark navigation
+    // Flash highlight from bookmark navigation — only first match
     if (highlightText != null && highlightOpacity > 0) {
       final normQ = normalizeArabic(highlightText!);
-      for (final (start, end) in findNormalizedMatches(text, normQ)) {
+      final flashMatches = findNormalizedMatches(text, normQ);
+      if (flashMatches.isNotEmpty) {
+        final (start, end) = flashMatches.first;
         allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
       }
     }
 
-    // Bookmark highlighting (subtle)
+    // Bookmark highlighting (subtle) — only first occurrence per bookmark
     for (final bText in bookmarkedTexts) {
       final normQ = normalizeArabic(bText);
-      for (final (start, end) in findNormalizedMatches(text, normQ)) {
+      final bMatches = findNormalizedMatches(text, normQ);
+      if (bMatches.isNotEmpty) {
+        final (start, end) = bMatches.first;
         allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
       }
     }

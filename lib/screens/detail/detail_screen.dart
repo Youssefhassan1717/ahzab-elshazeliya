@@ -360,32 +360,44 @@ class _DetailScreenState extends State<DetailScreen>
                 );
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.copy_outlined),
-              tooltip: 'نسخ المحتوى',
-              onPressed: () => _copyContent(isDark),
-            ),
             Consumer<FavoritesProvider>(
               builder: (context, favProvider, _) {
                 final isFav = favProvider.isFavorite(widget.part.id);
-                return IconButton(
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(
-                      isFav ? Icons.favorite : Icons.favorite_border,
-                      key: ValueKey(isFav),
-                      color: isFav
-                          ? Colors.red.shade600
-                          : (isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      favProvider.toggleFavorite(widget.part.id, context);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isFav
+                            ? Colors.red.shade600.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: isFav
+                            ? Border.all(color: Colors.red.shade600.withValues(alpha: 0.25), width: 1)
+                            : null,
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: Icon(
+                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          key: ValueKey(isFav),
+                          size: 20,
+                          color: isFav
+                              ? Colors.red.shade600
+                              : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary),
+                        ),
+                      ),
                     ),
                   ),
-                  tooltip: isFav ? 'إزالة من المميز' : 'إضافة للمميز',
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    favProvider.toggleFavorite(widget.part.id, context);
-                  },
                 );
               },
             ),
