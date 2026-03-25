@@ -314,11 +314,13 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
 
     final (matchStart, matchEnd) = bestMatch;
 
-    // Find word boundaries for cleaner snippet
+    // RTL display: text flows right→left, so "before" appears on the RIGHT
+    // (visible) while the match gets pushed LEFT (may be truncated).
+    // Keep "before" very short so the highlighted match stays visible.
     int snippetStart = matchStart;
     int count = 0;
-    // Go back ~5 words or 50 chars
-    while (snippetStart > 0 && count < 50) {
+    // Only go back ~12 chars (1-2 words) to keep match visible in RTL
+    while (snippetStart > 0 && count < 12) {
       snippetStart--;
       count++;
     }
@@ -330,11 +332,12 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
 
     int snippetEnd = matchEnd;
     count = 0;
-    while (snippetEnd < cleanContent.length && count < 50) {
+    // Go forward ~30 chars for context after match
+    while (snippetEnd < cleanContent.length && count < 30) {
       snippetEnd++;
       count++;
     }
-    // Snap to prev space
+    // Snap to next space
     while (snippetEnd < cleanContent.length && cleanContent[snippetEnd] != ' ') {
       snippetEnd++;
     }

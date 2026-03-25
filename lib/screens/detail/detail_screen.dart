@@ -152,7 +152,7 @@ class _DetailScreenState extends State<DetailScreen>
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) return;
 
-    // Find where the first match is in the content as a fraction
+    // Find where the best match is in the content as a fraction
     final content = widget.part.content;
     final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
     final normalizedQuery = normalizeArabic(widget.searchQuery);
@@ -165,9 +165,18 @@ class _DetailScreenState extends State<DetailScreen>
     // Get viewport height to center the match
     final viewportHeight = _scrollController.position.viewportDimension;
 
-    // Calculate target: proportional position minus half viewport to center
-    final rawTarget = fraction * maxScroll;
-    final targetOffset = (rawTarget - viewportHeight * 0.35).clamp(0.0, maxScroll);
+    // Total scrollable area = maxScroll + viewportHeight
+    // The header takes roughly 200-250px, content body takes the rest
+    // Estimate content area in scroll coordinates
+    final totalHeight = maxScroll + viewportHeight;
+    const headerEstimate = 250.0; // header + spacing before content body
+    final contentHeight = totalHeight - headerEstimate;
+
+    // Position within the content body
+    final matchScrollPos = headerEstimate + (fraction * contentHeight);
+
+    // Center the match in the viewport
+    final targetOffset = (matchScrollPos - viewportHeight * 0.4).clamp(0.0, maxScroll);
 
     _scrollController.animateTo(
       targetOffset,
