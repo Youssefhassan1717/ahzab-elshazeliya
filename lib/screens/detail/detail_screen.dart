@@ -74,9 +74,17 @@ class _DetailScreenState extends State<DetailScreen>
     }
   }
 
+  /// Cleans content the same way _buildBodyText does for consistent position mapping.
+  String _cleanContent(String raw) {
+    return raw
+        .replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ')
+        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r' {2,}'), ' ')
+        .trim();
+  }
+
   void _computeSearchMatches() {
-    final content = widget.part.content;
-    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final cleanContent = _cleanContent(widget.part.content);
     final normalizedQuery = normalizeArabic(widget.searchQuery);
     _searchMatches = findNormalizedMatches(cleanContent, normalizedQuery);
     _currentMatchIndex = 0;
@@ -89,8 +97,7 @@ class _DetailScreenState extends State<DetailScreen>
 
     setState(() => _currentMatchIndex = index);
 
-    final content = widget.part.content;
-    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final cleanContent = _cleanContent(widget.part.content);
     final (matchStart, _) = _searchMatches[index];
     final fraction = matchStart / cleanContent.length;
     final viewportHeight = _scrollController.position.viewportDimension;
@@ -221,19 +228,17 @@ class _DetailScreenState extends State<DetailScreen>
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) return;
 
-    final content = widget.part.content;
-    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final cleanContent = _cleanContent(widget.part.content);
     final normalizedQuery = normalizeArabic(text);
-    final bestMatch = findBestSnippetMatch(cleanContent, normalizedQuery);
-    if (bestMatch == null) return;
+    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
+    if (matches.isEmpty) return;
 
-    final (matchStart, _) = bestMatch;
+    // Use the first exact match position
+    final (matchStart, _) = matches.first;
     final fraction = matchStart / cleanContent.length;
     final viewportHeight = _scrollController.position.viewportDimension;
     final totalScrollableHeight = maxScroll + viewportHeight;
 
-    // The scroll content is: padding(12) + header(~220) + gap(20) + contentBody + gap(20) + zoomInstr(~60) + padding(32)
-    // Content body starts at roughly ~270px and ends at totalScrollableHeight - ~112
     const contentStartOffset = 270.0;
     const contentEndPadding = 112.0;
     final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
