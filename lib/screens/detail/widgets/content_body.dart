@@ -391,7 +391,7 @@ class ContentBody extends StatelessWidget {
 
           // Title in ornamental frame
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               color: headerColor.withValues(alpha: isDark ? 0.08 : 0.04),
@@ -400,16 +400,20 @@ class ContentBody extends StatelessWidget {
                 width: 0.5,
               ),
             ),
-            child: Text(
-              '﴾  $title  ﴿',
-              style: TextStyle(
-                fontFamily: 'Amiri',
-                fontSize: fontSize * 1.15,
-                fontWeight: FontWeight.w700,
-                color: headerColor,
-                height: 1.6,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '﴾  $title  ﴿',
+                style: TextStyle(
+                  fontFamily: 'Amiri',
+                  fontSize: fontSize * 1.15,
+                  fontWeight: FontWeight.w700,
+                  color: headerColor,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
               ),
-              textAlign: TextAlign.center,
             ),
           ),
 
