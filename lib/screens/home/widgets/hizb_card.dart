@@ -395,32 +395,143 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
   void _navigateToDetail(BuildContext context) {
     HapticFeedback.lightImpact();
     Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, animation, secondaryAnimation) => DetailScreen(
+      _SwipeBackPageRoute(
+        builder: (_) => DetailScreen(
           part: part,
           searchQuery: widget.searchQuery,
         ),
-        transitionsBuilder: (_, animation, secondaryAnimation, child) {
-          final curvedAnimation = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
+      ),
+    );
+  }
+}
 
-          // RTL: slide from left (negative X)
-          return SlideTransition(
-            position: Tween(
-              begin: const Offset(-0.25, 0.0),
-              end: Offset.zero,
-            ).animate(curvedAnimation),
-            child: FadeTransition(
-              opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curvedAnimation),
-              child: child,
-            ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 250),
+/// A page route that supports iOS-style swipe-back from the left edge,
+/// with slide + fade transition matching the app's RTL design.
+class _SwipeBackPageRoute<T> extends PageRoute<T> {
+  final WidgetBuilder builder;
+
+  _SwipeBackPageRoute({required this.builder});
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  String? get barrierLabel => null;
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 300);
+
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 250);
+
+  // Enable the swipe-back gesture
+  @override
+  bool get popGestureEnabled => true;
+
+  @override
+  Widget buildPage(BuildContext context, Animation<double> animation,
+      Animation<double> secondaryAnimation) {
+    return builder(context);
+  }
+
+  @override
+  Widget buildTransitions(BuildContext context, Animation<double> animation,
+      Animation<double> secondaryAnimation, Widget child) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    // Wrap in a swipe-back gesture detector
+    final Widget page = SlideTransition(
+      position: Tween(
+        begin: const Offset(-1.0, 0.0),
+        end: Offset.zero,
+      ).animate(curvedAnimation),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.3, end: 1.0).animate(curvedAnimation),
+        child: child,
+      ),
+    );
+
+    // Only enable gesture when the route is on top
+    if (animation.status == AnimationStatus.completed) {
+      return _SwipeBackGesture(route: this, child: page);
+    }
+    return page;
+  }
+}
+
+class _SwipeBackGesture extends StatefulWidget {
+  final PageRoute route;
+  final Widget child;
+
+  const _SwipeBackGesture({required this.route, required this.child});
+
+  @override
+  State<_SwipeBackGesture> createState() => _SwipeBackGestureState();
+}
+
+class _SwipeBackGestureState extends State<_SwipeBackGesture> {
+  double _dragOffset = 0;
+  bool _isDragging = false;
+  static const double _edgeWidth = 30.0;
+  static const double _threshold = 0.35;
+
+  void _onHorizontalDragStart(DragStartDetails details) {
+    // Only start if swipe begins from the left edge
+    if (details.globalPosition.dx <= _edgeWidth) {
+      _isDragging = true;
+      _dragOffset = 0;
+    }
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_isDragging) return;
+    setState(() {
+      _dragOffset = (_dragOffset + details.delta.dx).clamp(0.0, MediaQuery.of(context).size.width);
+    });
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (!_isDragging) return;
+    _isDragging = false;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fraction = _dragOffset / screenWidth;
+    final velocity = details.primaryVelocity ?? 0;
+
+    if (fraction > _threshold || velocity > 800) {
+      // Complete the back navigation
+      Navigator.of(context).pop();
+    } else {
+      // Snap back
+      setState(() => _dragOffset = 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fraction = _dragOffset / screenWidth;
+
+    return GestureDetector(
+      onHorizontalDragStart: _onHorizontalDragStart,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      child: AnimatedContainer(
+        duration: _isDragging ? Duration.zero : const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(_dragOffset, 0, 0),
+        child: AnimatedOpacity(
+          duration: _isDragging ? Duration.zero : const Duration(milliseconds: 250),
+          opacity: 1.0 - (fraction * 0.3),
+          child: widget.child,
+        ),
       ),
     );
   }
