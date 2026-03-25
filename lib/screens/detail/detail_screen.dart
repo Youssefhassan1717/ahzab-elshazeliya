@@ -427,6 +427,20 @@ class _DetailScreenState extends State<DetailScreen>
                             onTap: () {
                               selectableRegionState.copySelection(SelectionChangedCause.toolbar);
                               selectableRegionState.hideToolbar();
+                              HapticFeedback.lightImpact();
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'تم نسخ النص',
+                                    style: TextStyle(fontFamily: 'ScheherazadeNew'),
+                                  ),
+                                  backgroundColor: isDk ? AppColors.gold : AppColors.emeraldGreen,
+                                  duration: const Duration(milliseconds: 1200),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                ),
+                              );
                             },
                           ),
                           Container(
