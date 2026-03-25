@@ -386,22 +386,74 @@ class _DetailScreenState extends State<DetailScreen>
           ),
           child: SelectionArea(
             contextMenuBuilder: (context, selectableRegionState) {
-              return _IslamicSelectionMenu(
-                onCopy: () {
-                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
-                  selectableRegionState.hideToolbar();
-                },
-                onBookmark: () {
-                  // Copy to clipboard, then read it back for bookmark
-                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
-                  Clipboard.getData(Clipboard.kTextPlain).then((data) {
-                    if (data?.text != null && data!.text!.isNotEmpty) {
-                      _addBookmark(data.text!);
-                    }
-                  });
-                  selectableRegionState.hideToolbar();
-                },
-                isDark: isDark,
+              final isDk = Theme.of(context).brightness == Brightness.dark;
+              final accent = isDk ? AppColors.gold : AppColors.emeraldGreen;
+              final bg = isDk
+                  ? const Color(0xFF1A2E20)
+                  : const Color(0xFFF5F9F5);
+              final textCol = isDk
+                  ? AppColors.darkTextPrimary
+                  : AppColors.lightTextPrimary;
+
+              return AdaptiveTextSelectionToolbar(
+                anchors: selectableRegionState.contextMenuAnchors,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDk ? 0.3 : 0.12),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildMenuBtn(
+                            icon: Icons.copy_rounded,
+                            label: 'نسخ',
+                            accent: accent,
+                            textColor: textCol,
+                            onTap: () {
+                              selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                              selectableRegionState.hideToolbar();
+                            },
+                          ),
+                          Container(
+                            width: 1,
+                            height: 28,
+                            color: accent.withValues(alpha: 0.15),
+                          ),
+                          _buildMenuBtn(
+                            icon: Icons.bookmark_add_rounded,
+                            label: 'علامة مميزة',
+                            accent: accent,
+                            textColor: textCol,
+                            onTap: () {
+                              selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                              Clipboard.getData(Clipboard.kTextPlain).then((data) {
+                                if (data?.text != null && data!.text!.isNotEmpty) {
+                                  _addBookmark(data.text!);
+                                }
+                              });
+                              selectableRegionState.hideToolbar();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
             child: GestureDetector(
@@ -484,133 +536,14 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
-  void _copyContent(bool isDark) {
-    final text = '${widget.part.title}'
-        '${widget.part.subtitle != null ? '\n${widget.part.subtitle}\n' : '\n'}'
-        '\n${widget.part.content}';
-    Clipboard.setData(ClipboardData(text: text));
-    HapticFeedback.lightImpact();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'تم نسخ المحتوى بنجاح',
-          style: TextStyle(
-            fontFamily: 'ScheherazadeNew',
-            color: isDark ? AppColors.darkTextPrimary : Colors.white,
-          ),
-        ),
-        backgroundColor: AppColors.emeraldGreen,
-      ),
-    );
-  }
-}
-
-class _IslamicSelectionMenu extends StatefulWidget {
-  final VoidCallback onCopy;
-  final VoidCallback onBookmark;
-  final bool isDark;
-
-  const _IslamicSelectionMenu({
-    required this.onCopy,
-    required this.onBookmark,
-    required this.isDark,
-  });
-
-  @override
-  State<_IslamicSelectionMenu> createState() => _IslamicSelectionMenuState();
-}
-
-class _IslamicSelectionMenuState extends State<_IslamicSelectionMenu>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _menuAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _menuAnim = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _menuAnim.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = widget.isDark ? AppColors.gold : AppColors.emeraldGreen;
-    final bg = widget.isDark
-        ? const Color(0xFF1A2E20)
-        : const Color(0xFFF5F9F5);
-    final textColor = widget.isDark
-        ? AppColors.darkTextPrimary
-        : AppColors.lightTextPrimary;
-
-    return FadeTransition(
-      opacity: CurvedAnimation(parent: _menuAnim, curve: Curves.easeOut),
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.85, end: 1.0).animate(
-          CurvedAnimation(parent: _menuAnim, curve: Curves.easeOutBack),
-        ),
-        child: Material(
-          elevation: 8,
-          shadowColor: Colors.black.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(16),
-          color: bg,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: accent.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _menuButton(
-                    icon: Icons.copy_rounded,
-                    label: 'نسخ',
-                    accent: accent,
-                    textColor: textColor,
-                    onTap: widget.onCopy,
-                  ),
-                  Container(
-                    width: 1,
-                    height: 30,
-                    color: accent.withValues(alpha: 0.15),
-                  ),
-                  _menuButton(
-                    icon: Icons.bookmark_add_rounded,
-                    label: 'علامة مميزة',
-                    accent: accent,
-                    textColor: textColor,
-                    onTap: widget.onBookmark,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _menuButton({
+  Widget _buildMenuBtn({
     required IconData icon,
     required String label,
     required Color accent,
     required Color textColor,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -630,6 +563,27 @@ class _IslamicSelectionMenuState extends State<_IslamicSelectionMenu>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _copyContent(bool isDark) {
+    final text = '${widget.part.title}'
+        '${widget.part.subtitle != null ? '\n${widget.part.subtitle}\n' : '\n'}'
+        '\n${widget.part.content}';
+    Clipboard.setData(ClipboardData(text: text));
+    HapticFeedback.lightImpact();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'تم نسخ المحتوى بنجاح',
+          style: TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            color: isDark ? AppColors.darkTextPrimary : Colors.white,
+          ),
+        ),
+        backgroundColor: AppColors.emeraldGreen,
       ),
     );
   }
