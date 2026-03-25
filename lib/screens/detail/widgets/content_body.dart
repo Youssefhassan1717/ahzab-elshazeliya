@@ -8,6 +8,9 @@ class ContentBody extends StatelessWidget {
   final double fontSize;
   final bool isDark;
   final String searchQuery;
+  final List<String> bookmarkedTexts;
+  final String? highlightText;
+  final double highlightOpacity;
 
   const ContentBody({
     super.key,
@@ -15,6 +18,9 @@ class ContentBody extends StatelessWidget {
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
+    this.bookmarkedTexts = const [],
+    this.highlightText,
+    this.highlightOpacity = 0.0,
   });
 
   @override
@@ -254,35 +260,90 @@ class ContentBody extends StatelessWidget {
       letterSpacing: 0.3,
     );
 
-    if (searchQuery.isEmpty) {
-      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
+    final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
+
+    // Collect all highlight ranges: search matches + bookmark matches + flash highlight
+    final allRanges = <_HighlightRange>[];
+
+    // Search highlighting (strongest)
+    if (searchQuery.isNotEmpty) {
+      final normalizedQuery = normalizeArabic(searchQuery);
+      for (final (start, end) in findNormalizedMatches(text, normalizedQuery)) {
+        allRanges.add(_HighlightRange(start, end, _HighlightType.search));
+      }
     }
 
-    final normalizedQuery = normalizeArabic(searchQuery);
-    final matches = findNormalizedMatches(text, normalizedQuery);
-
-    if (matches.isEmpty) {
-      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
+    // Flash highlight from bookmark navigation
+    if (highlightText != null && highlightOpacity > 0) {
+      final normQ = normalizeArabic(highlightText!);
+      for (final (start, end) in findNormalizedMatches(text, normQ)) {
+        allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
+      }
     }
 
-    // Build highlighted spans using original text coordinates
-    final highlightColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    // Bookmark highlighting (subtle)
+    for (final bText in bookmarkedTexts) {
+      final normQ = normalizeArabic(bText);
+      for (final (start, end) in findNormalizedMatches(text, normQ)) {
+        allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
+      }
+    }
+
+    if (allRanges.isEmpty) {
+      return Text(text, style: baseStyle, textAlign: TextAlign.right);
+    }
+
+    // Sort by start position, then by priority (search > flash > bookmark)
+    allRanges.sort((a, b) {
+      final cmp = a.start.compareTo(b.start);
+      if (cmp != 0) return cmp;
+      return a.type.index.compareTo(b.type.index);
+    });
+
+    // Build spans, resolving overlaps by priority
     final spans = <TextSpan>[];
     int cursor = 0;
 
-    for (final (matchStart, matchEnd) in matches) {
-      if (matchStart > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, matchStart)));
+    // Deduplicate: for overlapping ranges, keep highest priority
+    final effectiveRanges = <_HighlightRange>[];
+    for (final range in allRanges) {
+      if (effectiveRanges.isEmpty || range.start >= effectiveRanges.last.end) {
+        effectiveRanges.add(range);
+      } else if (range.type.index < effectiveRanges.last.type.index) {
+        // Higher priority overwrites
+        effectiveRanges[effectiveRanges.length - 1] = range;
       }
+    }
+
+    for (final range in effectiveRanges) {
+      if (range.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, range.start)));
+      }
+
+      TextStyle hlStyle;
+      switch (range.type) {
+        case _HighlightType.search:
+          hlStyle = TextStyle(
+            color: isDark ? AppColors.darkBackground : Colors.white,
+            fontWeight: FontWeight.w700,
+            backgroundColor: accentColor.withValues(alpha: 0.85),
+          );
+        case _HighlightType.flash:
+          hlStyle = TextStyle(
+            fontWeight: FontWeight.w700,
+            backgroundColor: accentColor.withValues(alpha: 0.4 * highlightOpacity),
+          );
+        case _HighlightType.bookmark:
+          hlStyle = TextStyle(
+            backgroundColor: accentColor.withValues(alpha: isDark ? 0.12 : 0.08),
+          );
+      }
+
       spans.add(TextSpan(
-        text: text.substring(matchStart, matchEnd),
-        style: TextStyle(
-          color: isDark ? AppColors.darkBackground : Colors.white,
-          fontWeight: FontWeight.w700,
-          backgroundColor: highlightColor.withValues(alpha: 0.85),
-        ),
+        text: text.substring(range.start, range.end),
+        style: hlStyle,
       ));
-      cursor = matchEnd;
+      cursor = range.end;
     }
 
     if (cursor < text.length) {
@@ -291,7 +352,7 @@ class ContentBody extends StatelessWidget {
 
     return Text.rich(
       TextSpan(style: baseStyle, children: spans),
-      textAlign: TextAlign.justify,
+      textAlign: TextAlign.right,
     );
   }
 
@@ -567,4 +628,14 @@ class _SideBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Highlight types ordered by priority (lowest index = highest priority)
+enum _HighlightType { search, flash, bookmark }
+
+class _HighlightRange {
+  final int start;
+  final int end;
+  final _HighlightType type;
+  const _HighlightRange(this.start, this.end, this.type);
 }

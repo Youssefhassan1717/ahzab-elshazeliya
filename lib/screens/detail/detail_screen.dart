@@ -6,7 +6,9 @@ import '../../core/arabic_normalizer.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/smooth_scroll_physics.dart';
 import '../../models/hizb_part.dart';
+import '../../providers/bookmarks_provider.dart';
 import '../../providers/favorites_provider.dart';
+import 'widgets/bookmarks_panel.dart';
 import 'widgets/content_body.dart';
 import 'widgets/detail_header.dart';
 import 'widgets/zoom_instructions.dart';
@@ -30,10 +32,12 @@ class _DetailScreenState extends State<DetailScreen>
   double _fontSize = _baseFontSize;
   double _previousScale = 1.0;
   bool _isScaling = false;
+  String? _highlightText; // Temporarily highlighted bookmark text
 
   final ScrollController _scrollController = ScrollController();
 
   late final AnimationController _animController;
+  late final AnimationController _highlightController;
   Animation<double>? _animation;
 
   @override
@@ -43,11 +47,19 @@ class _DetailScreenState extends State<DetailScreen>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
+    _highlightController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    // Preload bookmarks for this hizb
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BookmarksProvider>().getBookmarks(widget.part.id);
+    });
 
     // Auto-scroll to first match after layout is complete
     if (widget.searchQuery.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Small delay to ensure layout is fully settled
         Future.delayed(const Duration(milliseconds: 150), () {
           if (mounted) _scrollToFirstMatch();
         });
@@ -58,6 +70,7 @@ class _DetailScreenState extends State<DetailScreen>
   @override
   void dispose() {
     _animController.dispose();
+    _highlightController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -185,6 +198,79 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
+  void _scrollToText(String text) {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    final content = widget.part.content;
+    final cleanContent = content.replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), '');
+    final normalizedQuery = normalizeArabic(text);
+    final bestMatch = findBestSnippetMatch(cleanContent, normalizedQuery);
+    if (bestMatch == null) return;
+
+    final (matchStart, _) = bestMatch;
+    final fraction = matchStart / cleanContent.length;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final totalHeight = maxScroll + viewportHeight;
+    const headerEstimate = 250.0;
+    final contentHeight = totalHeight - headerEstimate;
+    final matchScrollPos = headerEstimate + (fraction * contentHeight);
+    final targetOffset = (matchScrollPos - viewportHeight * 0.4).clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+    );
+
+    // Briefly highlight the text
+    setState(() => _highlightText = text);
+    _highlightController.forward(from: 0).then((_) {
+      if (mounted) setState(() => _highlightText = null);
+    });
+  }
+
+  void _showBookmarksPanel() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => BookmarksPanel(
+        hizbId: widget.part.id,
+        onBookmarkTap: (text) {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _scrollToText(text);
+          });
+        },
+      ),
+    );
+  }
+
+  void _addBookmark(String selectedText) {
+    if (selectedText.trim().isEmpty) return;
+    HapticFeedback.mediumImpact();
+    final provider = context.read<BookmarksProvider>();
+    provider.addBookmark(widget.part.id, selectedText.trim());
+
+    // Show brief feedback
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'تم حفظ العلامة',
+          style: TextStyle(fontFamily: 'ScheherazadeNew'),
+        ),
+        backgroundColor: isDark ? AppColors.gold : AppColors.emeraldGreen,
+        duration: const Duration(milliseconds: 1200),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -218,6 +304,47 @@ class _DetailScreenState extends State<DetailScreen>
             ),
           ),
           actions: [
+            // Bookmarks icon
+            Consumer<BookmarksProvider>(
+              builder: (context, bookProvider, _) {
+                final count = bookProvider.getCount(widget.part.id);
+                return IconButton(
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        count > 0
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_border_rounded,
+                        color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          top: -4,
+                          left: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? AppColors.darkBackground : Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  tooltip: 'العلامات المميزة',
+                  onPressed: _showBookmarksPanel,
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.copy_outlined),
               tooltip: 'نسخ المحتوى',
@@ -258,6 +385,25 @@ class _DetailScreenState extends State<DetailScreen>
             ),
           ),
           child: SelectionArea(
+            contextMenuBuilder: (context, selectableRegionState) {
+              return _IslamicSelectionMenu(
+                onCopy: () {
+                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                  selectableRegionState.hideToolbar();
+                },
+                onBookmark: () {
+                  // Copy to clipboard, then read it back for bookmark
+                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                  Clipboard.getData(Clipboard.kTextPlain).then((data) {
+                    if (data?.text != null && data!.text!.isNotEmpty) {
+                      _addBookmark(data.text!);
+                    }
+                  });
+                  selectableRegionState.hideToolbar();
+                },
+                isDark: isDark,
+              );
+            },
             child: GestureDetector(
               onDoubleTap: _resetZoom,
               onScaleStart: _onScaleStart,
@@ -300,11 +446,27 @@ class _DetailScreenState extends State<DetailScreen>
                     ),
                     const SizedBox(height: 20),
                     RepaintBoundary(
-                      child: ContentBody(
-                        content: widget.part.content,
-                        fontSize: _fontSize,
-                        isDark: isDark,
-                        searchQuery: widget.searchQuery,
+                      child: Consumer<BookmarksProvider>(
+                        builder: (context, bookProvider, _) {
+                          final bookmarkedTexts =
+                              bookProvider.getBookmarkTexts(widget.part.id);
+                          return AnimatedBuilder(
+                            animation: _highlightController,
+                            builder: (context, _) {
+                              return ContentBody(
+                                content: widget.part.content,
+                                fontSize: _fontSize,
+                                isDark: isDark,
+                                searchQuery: widget.searchQuery,
+                                bookmarkedTexts: bookmarkedTexts,
+                                highlightText: _highlightText,
+                                highlightOpacity: _highlightText != null
+                                    ? (1.0 - _highlightController.value).clamp(0.0, 1.0)
+                                    : 0.0,
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -339,6 +501,135 @@ class _DetailScreenState extends State<DetailScreen>
           ),
         ),
         backgroundColor: AppColors.emeraldGreen,
+      ),
+    );
+  }
+}
+
+class _IslamicSelectionMenu extends StatefulWidget {
+  final VoidCallback onCopy;
+  final VoidCallback onBookmark;
+  final bool isDark;
+
+  const _IslamicSelectionMenu({
+    required this.onCopy,
+    required this.onBookmark,
+    required this.isDark,
+  });
+
+  @override
+  State<_IslamicSelectionMenu> createState() => _IslamicSelectionMenuState();
+}
+
+class _IslamicSelectionMenuState extends State<_IslamicSelectionMenu>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _menuAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _menuAnim = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _menuAnim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final bg = widget.isDark
+        ? const Color(0xFF1A2E20)
+        : const Color(0xFFF5F9F5);
+    final textColor = widget.isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _menuAnim, curve: Curves.easeOut),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.85, end: 1.0).animate(
+          CurvedAnimation(parent: _menuAnim, curve: Curves.easeOutBack),
+        ),
+        child: Material(
+          elevation: 8,
+          shadowColor: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(16),
+          color: bg,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _menuButton(
+                    icon: Icons.copy_rounded,
+                    label: 'نسخ',
+                    accent: accent,
+                    textColor: textColor,
+                    onTap: widget.onCopy,
+                  ),
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: accent.withValues(alpha: 0.15),
+                  ),
+                  _menuButton(
+                    icon: Icons.bookmark_add_rounded,
+                    label: 'علامة مميزة',
+                    accent: accent,
+                    textColor: textColor,
+                    onTap: widget.onBookmark,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _menuButton({
+    required IconData icon,
+    required String label,
+    required Color accent,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: accent),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Amiri',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
