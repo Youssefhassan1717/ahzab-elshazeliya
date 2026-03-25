@@ -271,10 +271,10 @@ class ContentBody extends StatelessWidget {
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
       fontSize: fontSize,
-      height: 2.2,
+      height: 1.9,
       color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
       fontWeight: FontWeight.w400,
-      letterSpacing: 0.3,
+      letterSpacing: 0.1,
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -316,7 +316,7 @@ class ContentBody extends StatelessWidget {
     }
 
     if (allRanges.isEmpty) {
-      return Text(text, style: baseStyle, textAlign: TextAlign.right);
+      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
     }
 
     // Sort by start position, then by priority (search > flash > bookmark)
@@ -387,7 +387,7 @@ class ContentBody extends StatelessWidget {
 
     return Text.rich(
       TextSpan(style: baseStyle, children: spans),
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.justify,
     );
   }
 
