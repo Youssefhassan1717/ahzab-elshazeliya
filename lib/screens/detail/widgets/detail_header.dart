@@ -70,15 +70,11 @@ class DetailHeader extends StatelessWidget {
 
             // Main content
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+              padding: const EdgeInsets.fromLTRB(28, 22, 28, 20),
               child: Column(
                 children: [
                   // Top arabesque band
                   _arabesqueBand(accentColor, isDark),
-                  const SizedBox(height: 20),
-
-                  // Islamic medallion
-                  _buildMedallion(isDark, accentColor),
                   const SizedBox(height: 16),
 
                   // بسم الله
