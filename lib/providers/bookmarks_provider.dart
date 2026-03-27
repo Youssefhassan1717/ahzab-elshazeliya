@@ -4,24 +4,32 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class Bookmark {
   final String text;
-  final double scrollFraction; // scroll position as fraction of maxScrollExtent (0.0–1.0)
-  final int matchIndex; // which occurrence of this text in the content (0-based)
+  final int chunkIndex;  // which text chunk between section markers (0-based)
+  final int localStart;  // exact char start index in that chunk's cleaned text
+  final int localEnd;    // exact char end index in that chunk's cleaned text
   final DateTime createdAt;
 
-  Bookmark({required this.text, this.scrollFraction = 0.0, this.matchIndex = 0, DateTime? createdAt})
-      : createdAt = createdAt ?? DateTime.now();
+  Bookmark({
+    required this.text,
+    this.chunkIndex = 0,
+    this.localStart = 0,
+    this.localEnd = 0,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
         'text': text,
-        'scrollFraction': scrollFraction,
-        'matchIndex': matchIndex,
+        'chunkIndex': chunkIndex,
+        'localStart': localStart,
+        'localEnd': localEnd,
         'createdAt': createdAt.toIso8601String(),
       };
 
   factory Bookmark.fromJson(Map<String, dynamic> json) => Bookmark(
         text: json['text'] as String,
-        scrollFraction: (json['scrollFraction'] as num?)?.toDouble() ?? 0.0,
-        matchIndex: (json['matchIndex'] as int?) ?? 0,
+        chunkIndex: (json['chunkIndex'] as int?) ?? 0,
+        localStart: (json['localStart'] as int?) ?? 0,
+        localEnd: (json['localEnd'] as int?) ?? 0,
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
 }
@@ -52,17 +60,17 @@ class BookmarksProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> addBookmark(String hizbId, String text, {double scrollFraction = 0.0, int matchIndex = 0}) async {
+  Future<void> addBookmark(String hizbId, String text, {int chunkIndex = 0, int localStart = 0, int localEnd = 0}) async {
     final bookmarks = await getBookmarks(hizbId);
-    if (bookmarks.any((b) => b.text == text && b.matchIndex == matchIndex)) return;
-    bookmarks.insert(0, Bookmark(text: text, scrollFraction: scrollFraction, matchIndex: matchIndex));
+    if (bookmarks.any((b) => b.chunkIndex == chunkIndex && b.localStart == localStart)) return;
+    bookmarks.insert(0, Bookmark(text: text, chunkIndex: chunkIndex, localStart: localStart, localEnd: localEnd));
     notifyListeners();
     _save(hizbId);
   }
 
   Future<void> removeBookmark(String hizbId, Bookmark bookmark) async {
     final bookmarks = await getBookmarks(hizbId);
-    bookmarks.removeWhere((b) => b.text == bookmark.text && b.scrollFraction == bookmark.scrollFraction && b.createdAt == bookmark.createdAt);
+    bookmarks.removeWhere((b) => b.chunkIndex == bookmark.chunkIndex && b.localStart == bookmark.localStart && b.createdAt == bookmark.createdAt);
     notifyListeners();
     _save(hizbId);
   }

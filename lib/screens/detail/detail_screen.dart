@@ -38,8 +38,11 @@ class _DetailScreenState extends State<DetailScreen>
   int _lastSmoothTime = 0; // microsecond timestamp for time-based smoothing
   static const double _smoothK = 12.0; // smoothing stiffness
   bool _isScaling = false;
-  String? _highlightText; // Temporarily highlighted bookmark text
-  int _highlightMatchIndex = 0; // Which occurrence to highlight
+
+  // Flash highlight for bookmark navigation (exact position, no text search)
+  int? _flashChunkIndex;
+  int? _flashLocalStart;
+  int? _flashLocalEnd;
 
   // AppBar hide/show on scroll
   double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
@@ -94,6 +97,28 @@ class _DetailScreenState extends State<DetailScreen>
         .replaceAll('\n', ' ')
         .replaceAll(RegExp(r' {2,}'), ' ')
         .trim();
+  }
+
+  static final _sectionPattern = RegExp(r'§SECTION§(.+?)§SECTION§');
+
+  /// Splits content into text chunks the same way ContentBody does.
+  static List<String> _splitChunks(String content) {
+    if (!content.contains('§SECTION§')) return [content];
+    final chunks = <String>[];
+    int lastEnd = 0;
+    for (final match in _sectionPattern.allMatches(content)) {
+      final before = content.substring(lastEnd, match.start).trim();
+      if (before.isNotEmpty) chunks.add(before);
+      lastEnd = match.end;
+    }
+    final after = content.substring(lastEnd).trim();
+    if (after.isNotEmpty) chunks.add(after);
+    return chunks;
+  }
+
+  /// Cleans a chunk the same way _buildBodyText does.
+  static String _cleanChunk(String raw) {
+    return raw.replaceAll('\n', ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
   }
 
   void _computeSearchMatches() {
@@ -308,9 +333,10 @@ class _DetailScreenState extends State<DetailScreen>
                     searchQuery: widget.searchQuery,
                     activeSearchMatchIndex: _currentMatchIndex,
                     bookmarks: bookmarks,
-                    highlightText: _highlightText,
-                    highlightMatchIndex: _highlightMatchIndex,
-                    highlightOpacity: _highlightText != null
+                    flashChunkIndex: _flashChunkIndex,
+                    flashLocalStart: _flashLocalStart,
+                    flashLocalEnd: _flashLocalEnd,
+                    highlightOpacity: _flashChunkIndex != null
                         ? (1.0 - _highlightController.value).clamp(0.0, 1.0)
                         : 0.0,
                   );
@@ -330,8 +356,31 @@ class _DetailScreenState extends State<DetailScreen>
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) return;
 
-    // Use the stored scroll position directly
-    final targetOffset = (bookmark.scrollFraction * maxScroll).clamp(0.0, maxScroll);
+    // Compute global cleaned-char position from chunk data
+    final chunks = _splitChunks(widget.part.content);
+    int globalCharPos = 0;
+    for (int i = 0; i < bookmark.chunkIndex && i < chunks.length; i++) {
+      globalCharPos += _cleanChunk(chunks[i]).length;
+    }
+    globalCharPos += bookmark.localStart;
+
+    // Total cleaned chars across all chunks
+    int totalChars = 0;
+    for (final chunk in chunks) {
+      totalChars += _cleanChunk(chunk).length;
+    }
+    if (totalChars == 0) return;
+
+    // Same fraction-based scroll math as search navigation
+    final fraction = globalCharPos / totalChars;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final totalScrollableHeight = maxScroll + viewportHeight;
+
+    const contentStartOffset = 270.0;
+    const contentEndPadding = 112.0;
+    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
+    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
+    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
 
     _scrollController.animateTo(
       targetOffset,
@@ -339,13 +388,18 @@ class _DetailScreenState extends State<DetailScreen>
       curve: Curves.easeInOutCubic,
     );
 
-    // Highlight the exact occurrence
+    // Flash highlight at the exact stored position
     setState(() {
-      _highlightText = bookmark.text;
-      _highlightMatchIndex = bookmark.matchIndex;
+      _flashChunkIndex = bookmark.chunkIndex;
+      _flashLocalStart = bookmark.localStart;
+      _flashLocalEnd = bookmark.localEnd;
     });
     _highlightController.forward(from: 0).then((_) {
-      if (mounted) setState(() => _highlightText = null);
+      if (mounted) setState(() {
+        _flashChunkIndex = null;
+        _flashLocalStart = null;
+        _flashLocalEnd = null;
+      });
     });
   }
 
@@ -375,11 +429,6 @@ class _DetailScreenState extends State<DetailScreen>
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeInOutCubic,
     );
-
-    setState(() => _highlightText = text);
-    _highlightController.forward(from: 0).then((_) {
-      if (mounted) setState(() => _highlightText = null);
-    });
   }
 
   void _showBookmarksPanel() {
@@ -404,32 +453,58 @@ class _DetailScreenState extends State<DetailScreen>
     HapticFeedback.mediumImpact();
     final trimmed = selectedText.trim();
 
-    // Store the exact scroll position for navigation
-    double scrollFraction = 0.0;
-    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
-      scrollFraction = (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0);
+    // Split content into chunks (same way ContentBody does)
+    final chunks = _splitChunks(widget.part.content);
+    final normalizedQuery = normalizeArabic(trimmed);
+
+    // Find ALL occurrences across all chunks with their chunk-local positions
+    final allMatches = <({int chunkIndex, int localStart, int localEnd})>[];
+    int cumulativeChars = 0;
+    for (int i = 0; i < chunks.length; i++) {
+      final cleaned = _cleanChunk(chunks[i]);
+      for (final (start, end) in findNormalizedMatches(cleaned, normalizedQuery)) {
+        allMatches.add((chunkIndex: i, localStart: start, localEnd: end));
+      }
+      cumulativeChars += cleaned.length;
     }
 
-    // Find which occurrence (matchIndex) is closest to the current scroll position.
-    // This is what makes the bookmark point to the EXACT occurrence the user selected.
-    int matchIndex = 0;
-    final cleanContent = _cleanContent(widget.part.content);
-    final normalizedQuery = normalizeArabic(trimmed);
-    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
-    if (matches.length > 1) {
-      final approxCharPos = (scrollFraction * cleanContent.length).round();
-      int bestDist = cleanContent.length;
-      for (int i = 0; i < matches.length; i++) {
-        final dist = (matches[i].$1 - approxCharPos).abs();
+    if (allMatches.isEmpty) return;
+
+    // Pick the occurrence closest to the current scroll position
+    int bestIdx = 0;
+    if (allMatches.length > 1 && _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+      final scrollFraction = (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0);
+      // Compute approximate global char position from scroll
+      int totalChars = 0;
+      for (final chunk in chunks) {
+        totalChars += _cleanChunk(chunk).length;
+      }
+      final approxCharPos = (scrollFraction * totalChars).round();
+
+      int bestDist = totalChars;
+      for (int m = 0; m < allMatches.length; m++) {
+        // Compute global position of this match
+        int globalPos = 0;
+        for (int c = 0; c < allMatches[m].chunkIndex; c++) {
+          globalPos += _cleanChunk(chunks[c]).length;
+        }
+        globalPos += allMatches[m].localStart;
+        final dist = (globalPos - approxCharPos).abs();
         if (dist < bestDist) {
           bestDist = dist;
-          matchIndex = i;
+          bestIdx = m;
         }
       }
     }
 
+    final best = allMatches[bestIdx];
     final provider = context.read<BookmarksProvider>();
-    provider.addBookmark(widget.part.id, trimmed, scrollFraction: scrollFraction, matchIndex: matchIndex);
+    provider.addBookmark(
+      widget.part.id, trimmed,
+      chunkIndex: best.chunkIndex,
+      localStart: best.localStart,
+      localEnd: best.localEnd,
+    );
 
     // Show brief feedback
     final isDark = Theme.of(context).brightness == Brightness.dark;

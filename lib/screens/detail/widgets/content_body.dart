@@ -10,9 +10,10 @@ class ContentBody extends StatelessWidget {
   final bool isDark;
   final String searchQuery;
   final int activeSearchMatchIndex;
-  final List<Bookmark> bookmarks; // full bookmark objects with matchIndex
-  final String? highlightText;
-  final int highlightMatchIndex; // which occurrence to flash-highlight
+  final List<Bookmark> bookmarks; // full bookmark objects with chunkIndex + localStart/End
+  final int? flashChunkIndex;     // chunk to flash-highlight (null = none)
+  final int? flashLocalStart;     // start index in that chunk's cleaned text
+  final int? flashLocalEnd;       // end index in that chunk's cleaned text
   final double highlightOpacity;
 
   const ContentBody({
@@ -23,8 +24,9 @@ class ContentBody extends StatelessWidget {
     this.searchQuery = '',
     this.activeSearchMatchIndex = 0,
     this.bookmarks = const [],
-    this.highlightText,
-    this.highlightMatchIndex = 0,
+    this.flashChunkIndex,
+    this.flashLocalStart,
+    this.flashLocalEnd,
     this.highlightOpacity = 0.0,
   });
 
@@ -229,10 +231,12 @@ class ContentBody extends StatelessWidget {
 
   Widget _buildContent() {
     int globalSearchOffset = 0;
+    int chunkIndex = 0;
 
     Widget buildText(String text) {
-      final result = _buildBodyText(text, globalSearchOffset);
-      // Count search matches in this chunk to advance the offset
+      final idx = chunkIndex;
+      chunkIndex++;
+      final result = _buildBodyText(text, globalSearchOffset, idx);
       if (searchQuery.isNotEmpty) {
         final normalizedQuery = normalizeArabic(searchQuery);
         globalSearchOffset += findNormalizedMatches(text, normalizedQuery).length;
@@ -267,7 +271,7 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  Widget _buildBodyText(String rawText, int searchMatchOffset) {
+  Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
     // Replace newlines with spaces so text flows naturally within available width
     final text = rawText.replaceAll('\n', ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
 
@@ -282,10 +286,10 @@ class ContentBody extends StatelessWidget {
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
 
-    // Collect all highlight ranges: search matches + bookmark matches + flash highlight
+    // Collect all highlight ranges
     final allRanges = <_HighlightRange>[];
 
-    // Search highlighting — track global match index for active highlight
+    // Search highlighting
     int searchMatchCount = 0;
     if (searchQuery.isNotEmpty) {
       final normalizedQuery = normalizeArabic(searchQuery);
@@ -298,29 +302,23 @@ class ContentBody extends StatelessWidget {
       }
     }
 
-    // Flash highlight from bookmark navigation — use exact match index
-    if (highlightText != null && highlightOpacity > 0) {
-      final normQ = normalizeArabic(highlightText!);
-      final flashMatches = findNormalizedMatches(text, normQ);
-      if (flashMatches.length > highlightMatchIndex) {
-        final (start, end) = flashMatches[highlightMatchIndex];
-        allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
-      } else if (flashMatches.isNotEmpty) {
-        final (start, end) = flashMatches.first;
-        allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
+    // Flash highlight — direct index, NO text searching
+    if (flashChunkIndex == chunkIdx && flashLocalStart != null && flashLocalEnd != null && highlightOpacity > 0) {
+      final s = flashLocalStart!.clamp(0, text.length);
+      final e = flashLocalEnd!.clamp(s, text.length);
+      if (e > s) {
+        allRanges.add(_HighlightRange(s, e, _HighlightType.flash));
       }
     }
 
-    // Bookmark highlighting (subtle) — use exact match index per bookmark
+    // Bookmark subtle highlights — direct index per bookmark, NO text searching
     for (final bookmark in bookmarks) {
-      final normQ = normalizeArabic(bookmark.text);
-      final bMatches = findNormalizedMatches(text, normQ);
-      if (bMatches.length > bookmark.matchIndex) {
-        final (start, end) = bMatches[bookmark.matchIndex];
-        allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
-      } else if (bMatches.isNotEmpty) {
-        final (start, end) = bMatches.first;
-        allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
+      if (bookmark.chunkIndex == chunkIdx) {
+        final s = bookmark.localStart.clamp(0, text.length);
+        final e = bookmark.localEnd.clamp(s, text.length);
+        if (e > s) {
+          allRanges.add(_HighlightRange(s, e, _HighlightType.bookmark));
+        }
       }
     }
 
