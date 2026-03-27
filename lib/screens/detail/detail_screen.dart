@@ -44,6 +44,15 @@ class _DetailScreenState extends State<DetailScreen>
   int? _flashLocalStart;
   int? _flashLocalEnd;
 
+  // Active bookmark — persists after flash fades to keep it highlighted
+  int? _activeBookmarkChunkIndex;
+  int? _activeBookmarkLocalStart;
+  int? _activeBookmarkLocalEnd;
+
+  // Bookmark navigation state
+  int _currentBookmarkIndex = -1;
+  bool _showBookmarkNav = false;
+
   // AppBar hide/show on scroll
   double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
   double _lastScrollOffset = 0.0;
@@ -66,7 +75,7 @@ class _DetailScreenState extends State<DetailScreen>
       vsync: this,
     );
     _highlightController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
@@ -339,6 +348,9 @@ class _DetailScreenState extends State<DetailScreen>
                     highlightOpacity: _flashChunkIndex != null
                         ? (1.0 - _highlightController.value).clamp(0.0, 1.0)
                         : 0.0,
+                    activeBookmarkChunkIndex: _activeBookmarkChunkIndex,
+                    activeBookmarkLocalStart: _activeBookmarkLocalStart,
+                    activeBookmarkLocalEnd: _activeBookmarkLocalEnd,
                   );
                 },
               );
@@ -388,18 +400,59 @@ class _DetailScreenState extends State<DetailScreen>
       curve: Curves.easeInOutCubic,
     );
 
-    // Flash highlight at the exact stored position
+    // Set persistent active bookmark highlight
     setState(() {
+      _activeBookmarkChunkIndex = bookmark.chunkIndex;
+      _activeBookmarkLocalStart = bookmark.localStart;
+      _activeBookmarkLocalEnd = bookmark.localEnd;
       _flashChunkIndex = bookmark.chunkIndex;
       _flashLocalStart = bookmark.localStart;
       _flashLocalEnd = bookmark.localEnd;
     });
+
+    // Flash highlight fades, but active bookmark stays
     _highlightController.forward(from: 0).then((_) {
       if (mounted) setState(() {
         _flashChunkIndex = null;
         _flashLocalStart = null;
         _flashLocalEnd = null;
       });
+    });
+  }
+
+  void _navigateToBookmarkIndex(int index) {
+    final bookmarks = context.read<BookmarksProvider>().getBookmarksList(widget.part.id);
+    if (bookmarks.isEmpty) return;
+    final clampedIndex = index.clamp(0, bookmarks.length - 1);
+    setState(() {
+      _currentBookmarkIndex = clampedIndex;
+      _showBookmarkNav = true;
+    });
+    _scrollToBookmark(bookmarks[clampedIndex]);
+  }
+
+  void _nextBookmark() {
+    final bookmarks = context.read<BookmarksProvider>().getBookmarksList(widget.part.id);
+    if (bookmarks.isEmpty) return;
+    HapticFeedback.selectionClick();
+    final next = (_currentBookmarkIndex + 1) % bookmarks.length;
+    _navigateToBookmarkIndex(next);
+  }
+
+  void _prevBookmark() {
+    final bookmarks = context.read<BookmarksProvider>().getBookmarksList(widget.part.id);
+    if (bookmarks.isEmpty) return;
+    HapticFeedback.selectionClick();
+    final prev = (_currentBookmarkIndex - 1 + bookmarks.length) % bookmarks.length;
+    _navigateToBookmarkIndex(prev);
+  }
+
+  void _dismissBookmarkNav() {
+    setState(() {
+      _showBookmarkNav = false;
+      _activeBookmarkChunkIndex = null;
+      _activeBookmarkLocalStart = null;
+      _activeBookmarkLocalEnd = null;
     });
   }
 
@@ -441,7 +494,17 @@ class _DetailScreenState extends State<DetailScreen>
         hizbId: widget.part.id,
         onBookmarkTap: (bookmark) {
           Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _scrollToBookmark(bookmark);
+            if (!mounted) return;
+            // Find the index of this bookmark in the list
+            final bookmarks = context.read<BookmarksProvider>().getBookmarksList(widget.part.id);
+            final idx = bookmarks.indexWhere((b) =>
+                b.chunkIndex == bookmark.chunkIndex &&
+                b.localStart == bookmark.localStart);
+            setState(() {
+              _currentBookmarkIndex = idx >= 0 ? idx : 0;
+              _showBookmarkNav = bookmarks.length > 1;
+            });
+            _scrollToBookmark(bookmark);
           });
         },
       ),
@@ -683,6 +746,25 @@ class _DetailScreenState extends State<DetailScreen>
                     totalMatches: _searchMatches.length,
                     onNext: _nextMatch,
                     onPrev: _prevMatch,
+                    isDark: isDark,
+                  ),
+                ),
+              ),
+
+            // Floating bookmark navigation bar
+            if (_showBookmarkNav)
+              Positioned(
+                bottom: 24,
+                left: 40,
+                right: 40,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: _BookmarkNavBar(
+                    currentIndex: _currentBookmarkIndex,
+                    totalBookmarks: context.watch<BookmarksProvider>().getCount(widget.part.id),
+                    onNext: _nextBookmark,
+                    onPrev: _prevBookmark,
+                    onDismiss: _dismissBookmarkNav,
                     isDark: isDark,
                   ),
                 ),
@@ -994,6 +1076,164 @@ class _SearchNavBarState extends State<_SearchNavBar>
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Icon(icon, size: 22, color: accent),
+        ),
+      ),
+    );
+  }
+}
+
+class _BookmarkNavBar extends StatefulWidget {
+  final int currentIndex;
+  final int totalBookmarks;
+  final VoidCallback onNext;
+  final VoidCallback onPrev;
+  final VoidCallback onDismiss;
+  final bool isDark;
+
+  const _BookmarkNavBar({
+    required this.currentIndex,
+    required this.totalBookmarks,
+    required this.onNext,
+    required this.onPrev,
+    required this.onDismiss,
+    required this.isDark,
+  });
+
+  @override
+  State<_BookmarkNavBar> createState() => _BookmarkNavBarState();
+}
+
+class _BookmarkNavBarState extends State<_BookmarkNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fadeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final bg = widget.isDark
+        ? const Color(0xFF132E1C).withValues(alpha: 0.95)
+        : Colors.white.withValues(alpha: 0.95);
+
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.5),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic)),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.25),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: widget.isDark ? 0.3 : 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dismiss button
+                _navButton(
+                  icon: Icons.close_rounded,
+                  onTap: widget.onDismiss,
+                  accent: accent.withValues(alpha: 0.5),
+                  size: 18,
+                ),
+                const SizedBox(width: 2),
+
+                // Previous button
+                _navButton(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  onTap: widget.onPrev,
+                  accent: accent,
+                ),
+                const SizedBox(width: 2),
+
+                // Counter with bookmark icon
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: widget.isDark ? 0.12 : 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bookmark_rounded, size: 14, color: accent),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.currentIndex + 1} / ${widget.totalBookmarks}',
+                        style: TextStyle(
+                          fontFamily: 'Amiri',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 2),
+
+                // Next button
+                _navButton(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  onTap: widget.onNext,
+                  accent: accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color accent,
+    double size = 22,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: size, color: accent),
         ),
       ),
     );

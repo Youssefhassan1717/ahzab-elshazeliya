@@ -15,6 +15,9 @@ class ContentBody extends StatelessWidget {
   final int? flashLocalStart;     // start index in that chunk's cleaned text
   final int? flashLocalEnd;       // end index in that chunk's cleaned text
   final double highlightOpacity;
+  final int? activeBookmarkChunkIndex;  // actively navigated bookmark chunk
+  final int? activeBookmarkLocalStart;  // actively navigated bookmark start
+  final int? activeBookmarkLocalEnd;    // actively navigated bookmark end
 
   const ContentBody({
     super.key,
@@ -28,6 +31,9 @@ class ContentBody extends StatelessWidget {
     this.flashLocalStart,
     this.flashLocalEnd,
     this.highlightOpacity = 0.0,
+    this.activeBookmarkChunkIndex,
+    this.activeBookmarkLocalStart,
+    this.activeBookmarkLocalEnd,
   });
 
   @override
@@ -311,9 +317,24 @@ class ContentBody extends StatelessWidget {
       }
     }
 
+    // Active bookmark highlight — the bookmark we just navigated to
+    if (activeBookmarkChunkIndex == chunkIdx && activeBookmarkLocalStart != null && activeBookmarkLocalEnd != null) {
+      final s = activeBookmarkLocalStart!.clamp(0, text.length);
+      final e = activeBookmarkLocalEnd!.clamp(s, text.length);
+      if (e > s) {
+        allRanges.add(_HighlightRange(s, e, _HighlightType.activeBookmark));
+      }
+    }
+
     // Bookmark subtle highlights — direct index per bookmark, NO text searching
     for (final bookmark in bookmarks) {
       if (bookmark.chunkIndex == chunkIdx) {
+        // Skip if this is the active bookmark (already highlighted stronger above)
+        if (activeBookmarkChunkIndex == chunkIdx &&
+            activeBookmarkLocalStart == bookmark.localStart &&
+            activeBookmarkLocalEnd == bookmark.localEnd) {
+          continue;
+        }
         final s = bookmark.localStart.clamp(0, text.length);
         final e = bookmark.localEnd.clamp(s, text.length);
         if (e > s) {
@@ -375,9 +396,24 @@ class ContentBody extends StatelessWidget {
                 : null,
             backgroundColor: accentColor.withValues(alpha: 0.7 * opacity),
           );
-        case _HighlightType.bookmark:
+        case _HighlightType.activeBookmark:
+          // Stronger, premium highlight for the actively navigated bookmark
           hlStyle = TextStyle(
-            backgroundColor: accentColor.withValues(alpha: isDark ? 0.12 : 0.08),
+            fontWeight: FontWeight.w600,
+            backgroundColor: isDark
+                ? AppColors.gold.withValues(alpha: 0.28)
+                : AppColors.emeraldGreen.withValues(alpha: 0.18),
+            decoration: TextDecoration.underline,
+            decorationColor: accentColor.withValues(alpha: 0.35),
+            decorationStyle: TextDecorationStyle.solid,
+            decorationThickness: 2.0,
+          );
+        case _HighlightType.bookmark:
+          // Clean, light, premium subtle highlight
+          hlStyle = TextStyle(
+            backgroundColor: isDark
+                ? AppColors.gold.withValues(alpha: 0.10)
+                : AppColors.emeraldGreen.withValues(alpha: 0.07),
           );
       }
 
@@ -677,7 +713,7 @@ class _SideBorderPainter extends CustomPainter {
 }
 
 // Highlight types ordered by priority (lowest index = highest priority)
-enum _HighlightType { searchActive, search, flash, bookmark }
+enum _HighlightType { searchActive, search, flash, activeBookmark, bookmark }
 
 class _HighlightRange {
   final int start;
