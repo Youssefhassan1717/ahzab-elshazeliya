@@ -1,0 +1,18 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Install APK on OPPO",
+			"type": "shell",
+			"command": "adb",
+			"args": [
+				"install",
+				"-r",
+				"d:/ahzab elshazlya/ahzab_app/build/app/outputs/flutter-apk/app-debug.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "deploy"
+		}
+	]
+}

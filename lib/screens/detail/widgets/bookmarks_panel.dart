@@ -6,7 +6,7 @@ import '../../../providers/bookmarks_provider.dart';
 
 class BookmarksPanel extends StatefulWidget {
   final String hizbId;
-  final void Function(String text) onBookmarkTap;
+  final void Function(Bookmark bookmark) onBookmarkTap;
 
   const BookmarksPanel({
     super.key,
@@ -53,7 +53,7 @@ class _BookmarksPanelState extends State<BookmarksPanel> {
 
     // Remove from local list and provider
     setState(() => _bookmarks.removeAt(index));
-    context.read<BookmarksProvider>().removeBookmark(widget.hizbId, bookmark.text);
+    context.read<BookmarksProvider>().removeBookmark(widget.hizbId, bookmark);
 
     // Show feedback
     ScaffoldMessenger.of(context).showSnackBar(
@@ -205,7 +205,7 @@ class _BookmarksPanelState extends State<BookmarksPanel> {
             onTap: index != null
                 ? () {
                     Navigator.of(context).pop();
-                    widget.onBookmarkTap(bookmark.text);
+                    widget.onBookmarkTap(bookmark);
                   }
                 : () {},
             onDelete: index != null ? () => _deleteBookmark(index) : () {},

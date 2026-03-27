@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/arabic_normalizer.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/bookmarks_provider.dart';
 
 class ContentBody extends StatelessWidget {
   final String content;
@@ -9,8 +10,9 @@ class ContentBody extends StatelessWidget {
   final bool isDark;
   final String searchQuery;
   final int activeSearchMatchIndex;
-  final List<String> bookmarkedTexts;
+  final List<Bookmark> bookmarks; // full bookmark objects with matchIndex
   final String? highlightText;
+  final int highlightMatchIndex; // which occurrence to flash-highlight
   final double highlightOpacity;
 
   const ContentBody({
@@ -20,8 +22,9 @@ class ContentBody extends StatelessWidget {
     required this.isDark,
     this.searchQuery = '',
     this.activeSearchMatchIndex = 0,
-    this.bookmarkedTexts = const [],
+    this.bookmarks = const [],
     this.highlightText,
+    this.highlightMatchIndex = 0,
     this.highlightOpacity = 0.0,
   });
 
@@ -34,7 +37,7 @@ class ContentBody extends StatelessWidget {
     return Container(
       // Outer frame
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
           width: 1.5,
@@ -61,7 +64,7 @@ class ContentBody extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(27),
+        borderRadius: BorderRadius.circular(15),
         child: Container(
           decoration: BoxDecoration(
             color: isDark
@@ -133,7 +136,7 @@ class ContentBody extends StatelessWidget {
 
                   // Inner frame with content
                   Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
                       border: Border.symmetric(
                         vertical: BorderSide(
@@ -144,7 +147,7 @@ class ContentBody extends StatelessWidget {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
+                        horizontal: 10,
                         vertical: 24,
                       ),
                       child: content.isNotEmpty
@@ -295,21 +298,27 @@ class ContentBody extends StatelessWidget {
       }
     }
 
-    // Flash highlight from bookmark navigation — only first match
+    // Flash highlight from bookmark navigation — use exact match index
     if (highlightText != null && highlightOpacity > 0) {
       final normQ = normalizeArabic(highlightText!);
       final flashMatches = findNormalizedMatches(text, normQ);
-      if (flashMatches.isNotEmpty) {
+      if (flashMatches.length > highlightMatchIndex) {
+        final (start, end) = flashMatches[highlightMatchIndex];
+        allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
+      } else if (flashMatches.isNotEmpty) {
         final (start, end) = flashMatches.first;
         allRanges.add(_HighlightRange(start, end, _HighlightType.flash));
       }
     }
 
-    // Bookmark highlighting (subtle) — only first occurrence per bookmark
-    for (final bText in bookmarkedTexts) {
-      final normQ = normalizeArabic(bText);
+    // Bookmark highlighting (subtle) — use exact match index per bookmark
+    for (final bookmark in bookmarks) {
+      final normQ = normalizeArabic(bookmark.text);
       final bMatches = findNormalizedMatches(text, normQ);
-      if (bMatches.isNotEmpty) {
+      if (bMatches.length > bookmark.matchIndex) {
+        final (start, end) = bMatches[bookmark.matchIndex];
+        allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
+      } else if (bMatches.isNotEmpty) {
         final (start, end) = bMatches.first;
         allRanges.add(_HighlightRange(start, end, _HighlightType.bookmark));
       }

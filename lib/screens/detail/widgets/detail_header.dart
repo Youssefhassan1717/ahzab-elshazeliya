@@ -70,12 +70,12 @@ class DetailHeader extends StatelessWidget {
 
             // Main content
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 22, 28, 20),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
               child: Column(
                 children: [
                   // Top arabesque band
                   _arabesqueBand(accentColor, isDark),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
                   // بسم الله
                   Text(
@@ -83,14 +83,14 @@ class DetailHeader extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'ScheherazadeNew',
                       color: accentColor.withValues(alpha: 0.65),
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      height: 1.8,
+                      height: 1.6,
                       letterSpacing: 1.2,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 8),
 
                   // Title
                   Text(
@@ -98,16 +98,16 @@ class DetailHeader extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Amiri',
                       color: accentColor,
-                      fontSize: math.max(34, fontSize * 1.55),
+                      fontSize: math.max(28, fontSize * 1.4),
                       fontWeight: FontWeight.w700,
-                      height: 1.4,
+                      height: 1.3,
                     ),
                     textAlign: TextAlign.center,
                   ),
 
                   // Subtitle
                   if (subtitle != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle!,
                       style: TextStyle(
@@ -123,7 +123,7 @@ class DetailHeader extends StatelessWidget {
                     ),
                   ],
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
 
                   // Bottom arabesque band
                   _arabesqueBand(accentColor, isDark),

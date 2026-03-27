@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -29,10 +29,21 @@ class _DetailScreenState extends State<DetailScreen>
   static const double _minFontSize = 10.0;
   static const double _maxFontSize = 44.0;
 
+  // Zoom state — raw pointer driven
+  final ValueNotifier<double> _fontSizeNotifier = ValueNotifier(_baseFontSize);
   double _fontSize = _baseFontSize;
-  double _previousScale = 1.0;
+  final Map<int, Offset> _pointers = {}; // active pointer positions
+  double _initialDistance = 0.0; // finger distance at pinch start
+  double _fontSizeAtPinchStart = _baseFontSize; // fontSize when pinch began
+  int _lastSmoothTime = 0; // microsecond timestamp for time-based smoothing
+  static const double _smoothK = 12.0; // smoothing stiffness
   bool _isScaling = false;
   String? _highlightText; // Temporarily highlighted bookmark text
+  int _highlightMatchIndex = 0; // Which occurrence to highlight
+
+  // AppBar hide/show on scroll
+  double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
+  double _lastScrollOffset = 0.0;
 
   // Search match navigation
   List<(int, int)> _searchMatches = [];
@@ -55,6 +66,8 @@ class _DetailScreenState extends State<DetailScreen>
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
+
+    _scrollController.addListener(_onScroll);
 
     // Preload bookmarks for this hizb from disk
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -132,62 +145,109 @@ class _DetailScreenState extends State<DetailScreen>
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _animController.dispose();
     _highlightController.dispose();
     _scrollController.dispose();
+    _fontSizeNotifier.dispose();
     super.dispose();
   }
 
-  void _onScaleStart(ScaleStartDetails details) {
-    if (details.pointerCount < 2) return;
-    
-    _isScaling = true;
-    _previousScale = _fontSize / _baseFontSize;
-    
-    // Stop any running animation
-    _animController.stop();
-    _animation?.removeListener(_onAnimationTick);
-    
-    // Force rebuild to disable scroll physics during pinch
-    setState(() {});
-  }
+  void _onScroll() {
+    final offset = _scrollController.offset;
+    final delta = offset - _lastScrollOffset;
+    _lastScrollOffset = offset;
 
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (!_isScaling || details.pointerCount < 2) return;
+    // At the very top, always show
+    if (offset <= 0) {
+      if (_appBarVisibility != 1.0) {
+        setState(() => _appBarVisibility = 1.0);
+      }
+      return;
+    }
 
-    // currentScale = previousScale * gestureScale
-    final currentScale = _previousScale * details.scale;
-    
-    // Exponential scaling for natural feel
-    final exponentialScale = math.pow(currentScale, 1.15).toDouble();
-    
-    // Clamp and calculate font size directly — no lerp lag
-    final newFontSize = (_baseFontSize * exponentialScale).clamp(_minFontSize, _maxFontSize);
+    // Scrolling down → hide, scrolling up → show
+    // Use delta sensitivity for smooth transition
+    double newVisibility = _appBarVisibility - (delta / 80.0);
+    newVisibility = newVisibility.clamp(0.0, 1.0);
 
-    // Only rebuild if change is visible
-    if ((newFontSize - _fontSize).abs() > 0.05) {
-      setState(() {
-        _fontSize = newFontSize;
-      });
+    // Snap to fully hidden/shown to avoid lingering partial states
+    if (newVisibility < 0.05) newVisibility = 0.0;
+    if (newVisibility > 0.95) newVisibility = 1.0;
+
+    if ((newVisibility - _appBarVisibility).abs() > 0.01) {
+      setState(() => _appBarVisibility = newVisibility);
     }
   }
 
-  void _onScaleEnd(ScaleEndDetails details) {
-    if (!_isScaling) return;
-    _isScaling = false;
+  // ── Raw pointer zoom ──────────────────────────────────────────────
+  double _fingerDistance() {
+    if (_pointers.length < 2) return 0.0;
+    final pts = _pointers.values.toList();
+    final dx = pts[0].dx - pts[1].dx;
+    final dy = pts[0].dy - pts[1].dy;
+    return math.sqrt(dx * dx + dy * dy);
+  }
 
-    // Save current scale for next gesture
-    _previousScale = _fontSize / _baseFontSize;
+  void _onPointerDown(PointerDownEvent e) {
+    _pointers[e.pointer] = e.position;
+    if (_pointers.length == 2) {
+      // Pinch started — capture baseline
+      _initialDistance = _fingerDistance();
+      _fontSizeAtPinchStart = _fontSize;
+      _lastSmoothTime = DateTime.now().microsecondsSinceEpoch;
+      if (!_isScaling) {
+        _isScaling = true;
+        // Stop any running reset animation
+        _animController.stop();
+        _animation?.removeListener(_onAnimationTick);
+        setState(() {}); // disable scroll
+      }
+    }
+  }
 
-    // Force rebuild to re-enable scroll physics
-    setState(() {});
+  void _onPointerMove(PointerMoveEvent e) {
+    if (!_pointers.containsKey(e.pointer)) return;
+    _pointers[e.pointer] = e.position;
+    if (_pointers.length == 2 && _isScaling && _initialDistance > 0) {
+      final currentDist = _fingerDistance();
+      final scaleFactor = currentDist / _initialDistance;
 
-    // Snap to nearest 0.5 for crisp rendering
-    final snapped = (_fontSize * 2).roundToDouble() / 2;
-    final clamped = snapped.clamp(_minFontSize, _maxFontSize);
-    
-    if ((clamped - _fontSize).abs() > 0.3) {
-      _animateToFontSize(clamped, const Duration(milliseconds: 120));
+      // Logarithmic mapping → target font size
+      final targetSize = (_fontSizeAtPinchStart * scaleFactor)
+          .clamp(_minFontSize, _maxFontSize);
+
+      // Time-based exponential smoothing
+      final now = DateTime.now().microsecondsSinceEpoch;
+      final dt = (now - _lastSmoothTime) / 1e6; // seconds
+      _lastSmoothTime = now;
+      final alpha = 1.0 - math.exp(-_smoothK * dt.clamp(0.001, 0.1));
+
+      final smoothed = _fontSize + (targetSize - _fontSize) * alpha;
+      final clamped = smoothed.clamp(_minFontSize, _maxFontSize);
+
+      if ((clamped - _fontSize).abs() > 0.01) {
+        _fontSize = clamped;
+        _fontSizeNotifier.value = _fontSize;
+      }
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent e) {
+    _pointers.remove(e.pointer);
+    if (_pointers.length < 2 && _isScaling) {
+      _isScaling = false;
+      _pointers.clear();
+      setState(() {}); // re-enable scroll
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent e) {
+    _pointers.remove(e.pointer);
+    if (_pointers.length < 2 && _isScaling) {
+      _isScaling = false;
+      _pointers.clear();
+      setState(() {});
     }
   }
 
@@ -210,17 +270,83 @@ class _DetailScreenState extends State<DetailScreen>
 
   void _onAnimationTick() {
     if (_animation != null) {
-      setState(() {
-        _fontSize = _animation!.value;
-      });
+      _fontSize = _animation!.value;
+      _fontSizeNotifier.value = _fontSize;
     }
   }
 
   void _resetZoom() {
     if (_fontSize == _baseFontSize) return;
     HapticFeedback.lightImpact();
-    _previousScale = 1.0;
     _animateToFontSize(_baseFontSize, const Duration(milliseconds: 300));
+  }
+
+  Widget _buildZoomableContent(bool isDark, double fontSize) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RepaintBoundary(
+          child: DetailHeader(
+            title: widget.part.title,
+            subtitle: widget.part.subtitle,
+            fontSize: fontSize,
+          ),
+        ),
+        const SizedBox(height: 20),
+        RepaintBoundary(
+          child: Consumer<BookmarksProvider>(
+            builder: (context, bookProvider, _) {
+              final bookmarks =
+                  bookProvider.getBookmarksList(widget.part.id);
+              return AnimatedBuilder(
+                animation: _highlightController,
+                builder: (context, _) {
+                  return ContentBody(
+                    content: widget.part.content,
+                    fontSize: fontSize,
+                    isDark: isDark,
+                    searchQuery: widget.searchQuery,
+                    activeSearchMatchIndex: _currentMatchIndex,
+                    bookmarks: bookmarks,
+                    highlightText: _highlightText,
+                    highlightMatchIndex: _highlightMatchIndex,
+                    highlightOpacity: _highlightText != null
+                        ? (1.0 - _highlightController.value).clamp(0.0, 1.0)
+                        : 0.0,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+        const ZoomInstructions(),
+      ],
+    );
+  }
+
+  void _scrollToBookmark(Bookmark bookmark) {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    // Use the stored scroll position directly
+    final targetOffset = (bookmark.scrollFraction * maxScroll).clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOutCubic,
+    );
+
+    // Highlight the exact occurrence
+    setState(() {
+      _highlightText = bookmark.text;
+      _highlightMatchIndex = bookmark.matchIndex;
+    });
+    _highlightController.forward(from: 0).then((_) {
+      if (mounted) setState(() => _highlightText = null);
+    });
   }
 
   void _scrollToText(String text) {
@@ -233,7 +359,6 @@ class _DetailScreenState extends State<DetailScreen>
     final matches = findNormalizedMatches(cleanContent, normalizedQuery);
     if (matches.isEmpty) return;
 
-    // Use the first exact match position
     final (matchStart, _) = matches.first;
     final fraction = matchStart / cleanContent.length;
     final viewportHeight = _scrollController.position.viewportDimension;
@@ -242,21 +367,15 @@ class _DetailScreenState extends State<DetailScreen>
     const contentStartOffset = 270.0;
     const contentEndPadding = 112.0;
     final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
-
-    // Map the text fraction to a scroll position within the content body
     final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
-
-    // Center the match in the viewport (place it at ~35% from top for comfortable reading)
     final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
 
-    // Smooth two-phase scroll: fast approach then gentle settle
     _scrollController.animateTo(
       targetOffset,
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeInOutCubic,
     );
 
-    // Briefly highlight the text with a longer, softer glow
     setState(() => _highlightText = text);
     _highlightController.forward(from: 0).then((_) {
       if (mounted) setState(() => _highlightText = null);
@@ -271,9 +390,9 @@ class _DetailScreenState extends State<DetailScreen>
       isScrollControlled: true,
       builder: (_) => BookmarksPanel(
         hizbId: widget.part.id,
-        onBookmarkTap: (text) {
+        onBookmarkTap: (bookmark) {
           Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _scrollToText(text);
+            if (mounted) _scrollToBookmark(bookmark);
           });
         },
       ),
@@ -283,15 +402,41 @@ class _DetailScreenState extends State<DetailScreen>
   void _addBookmark(String selectedText) {
     if (selectedText.trim().isEmpty) return;
     HapticFeedback.mediumImpact();
+    final trimmed = selectedText.trim();
+
+    // Store the exact scroll position for navigation
+    double scrollFraction = 0.0;
+    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+      scrollFraction = (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0);
+    }
+
+    // Find which occurrence (matchIndex) is closest to the current scroll position.
+    // This is what makes the bookmark point to the EXACT occurrence the user selected.
+    int matchIndex = 0;
+    final cleanContent = _cleanContent(widget.part.content);
+    final normalizedQuery = normalizeArabic(trimmed);
+    final matches = findNormalizedMatches(cleanContent, normalizedQuery);
+    if (matches.length > 1) {
+      final approxCharPos = (scrollFraction * cleanContent.length).round();
+      int bestDist = cleanContent.length;
+      for (int i = 0; i < matches.length; i++) {
+        final dist = (matches[i].$1 - approxCharPos).abs();
+        if (dist < bestDist) {
+          bestDist = dist;
+          matchIndex = i;
+        }
+      }
+    }
+
     final provider = context.read<BookmarksProvider>();
-    provider.addBookmark(widget.part.id, selectedText.trim());
+    provider.addBookmark(widget.part.id, trimmed, scrollFraction: scrollFraction, matchIndex: matchIndex);
 
     // Show brief feedback
     final isDark = Theme.of(context).brightness == Brightness.dark;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
-          'تم حفظ العلامة',
+          '\u062a\u0645 \u062d\u0641\u0638 \u0627\u0644\u0639\u0644\u0627\u0645\u0629',
           style: TextStyle(fontFamily: 'ScheherazadeNew'),
         ),
         backgroundColor: isDark ? AppColors.gold : AppColors.emeraldGreen,
@@ -303,312 +448,152 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final topPadding = MediaQuery.of(context).padding.top;
+    final headerHeight = topPadding + kToolbarHeight;
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          title: Hero(
-            tag: 'hizb_title_${widget.part.id}',
-            flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
-              return DefaultTextStyle(
-                style: DefaultTextStyle.of(toHeroContext).style,
-                child: toHeroContext.widget,
-              );
-            },
-            child: Text(
-              widget.part.title,
-              style: TextStyle(
-                fontFamily: 'Amiri',
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : AppColors.lightTextPrimary,
-              ),
-            ),
-          ),
-          actions: [
-            // Bookmarks icon — modern style
-            Consumer<BookmarksProvider>(
-              builder: (context, bookProvider, _) {
-                final count = bookProvider.getCount(widget.part.id);
-                final hasBookmarks = count > 0;
-                final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: _showBookmarksPanel,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: hasBookmarks
-                            ? accent.withValues(alpha: isDark ? 0.15 : 0.10)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: hasBookmarks
-                            ? Border.all(color: accent.withValues(alpha: 0.25), width: 1)
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            child: Icon(
-                              hasBookmarks
-                                  ? Icons.auto_stories_rounded
-                                  : Icons.auto_stories_outlined,
-                              key: ValueKey(hasBookmarks),
-                              size: 20,
-                              color: accent,
-                            ),
-                          ),
-                          if (hasBookmarks) ...[                            
-                            const SizedBox(width: 4),
-                            Text(
-                              '$count',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Amiri',
-                                color: accent,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            Consumer<FavoritesProvider>(
-              builder: (context, favProvider, _) {
-                final isFav = favProvider.isFavorite(widget.part.id);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      favProvider.toggleFavorite(widget.part.id, context);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isFav
-                            ? Colors.red.shade600.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: isFav
-                            ? Border.all(color: Colors.red.shade600.withValues(alpha: 0.25), width: 1)
-                            : null,
-                      ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: Icon(
-                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                          key: ValueKey(isFav),
-                          size: 20,
-                          color: isFav
-                              ? Colors.red.shade600
-                              : (isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
         body: Stack(
           children: [
-            // Main content
-            Theme(
-          data: Theme.of(context).copyWith(
-            textSelectionTheme: TextSelectionThemeData(
-              selectionColor: AppColors.emeraldGreen.withValues(alpha: 0.25),
-              selectionHandleColor: AppColors.emeraldGreen,
-              cursorColor: AppColors.emeraldGreen,
-            ),
-          ),
-          child: SelectionArea(
-            contextMenuBuilder: (context, selectableRegionState) {
-              final isDk = Theme.of(context).brightness == Brightness.dark;
-              final accent = isDk ? AppColors.gold : AppColors.emeraldGreen;
-              final bg = isDk
-                  ? const Color(0xFF1A2E20)
-                  : const Color(0xFFF5F9F5);
-              final textCol = isDk
-                  ? AppColors.darkTextPrimary
-                  : AppColors.lightTextPrimary;
-
-              return AdaptiveTextSelectionToolbar(
-                anchors: selectableRegionState.contextMenuAnchors,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: accent.withValues(alpha: 0.25),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDk ? 0.3 : 0.12),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+            // Main scrollable content
+            Listener(
+              onPointerDown: _onPointerDown,
+              onPointerMove: _onPointerMove,
+              onPointerUp: _onPointerUp,
+              onPointerCancel: _onPointerCancel,
+              child: GestureDetector(
+                onDoubleTap: _resetZoom,
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    textSelectionTheme: TextSelectionThemeData(
+                      selectionColor: AppColors.emeraldGreen.withValues(alpha: 0.25),
+                      selectionHandleColor: AppColors.emeraldGreen,
+                      cursorColor: AppColors.emeraldGreen,
                     ),
+                  ),
+                  child: SelectionArea(
+                    contextMenuBuilder: _buildContextMenu,
                     child: Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildMenuBtn(
-                            icon: Icons.copy_rounded,
-                            label: 'نسخ',
-                            accent: accent,
-                            textColor: textCol,
-                            onTap: () {
-                              selectableRegionState.copySelection(SelectionChangedCause.toolbar);
-                              selectableRegionState.hideToolbar();
-                              HapticFeedback.lightImpact();
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                    'تم نسخ النص',
-                                    style: TextStyle(fontFamily: 'ScheherazadeNew'),
-                                  ),
-                                  backgroundColor: isDk ? AppColors.gold : AppColors.emeraldGreen,
-                                  duration: const Duration(milliseconds: 1200),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                                ),
-                              );
-                            },
+                      textDirection: TextDirection.ltr,
+                      child: RawScrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: false,
+                        trackVisibility: false,
+                        thickness: 4.5,
+                        radius: const Radius.circular(8),
+                        fadeDuration: const Duration(milliseconds: 400),
+                        timeToFade: const Duration(milliseconds: 800),
+                        thumbColor: isDark
+                            ? AppColors.gold.withValues(alpha: 0.45)
+                            : AppColors.emeraldGreen.withValues(alpha: 0.35),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                        minThumbLength: 80,
+                        child: Directionality(
+                          textDirection: TextDirection.rtl,
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            physics: _isScaling
+                                ? const NeverScrollableScrollPhysics()
+                                : const SmoothScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                            padding: EdgeInsets.fromLTRB(4, headerHeight + 12, 4, 32),
+                            child: ValueListenableBuilder<double>(
+                              valueListenable: _fontSizeNotifier,
+                              builder: (context, currentFontSize, _) {
+                                return _buildZoomableContent(isDark, currentFontSize);
+                              },
+                            ),
                           ),
-                          Container(
-                            width: 1,
-                            height: 28,
-                            color: accent.withValues(alpha: 0.15),
-                          ),
-                          _buildMenuBtn(
-                            icon: Icons.bookmark_add_rounded,
-                            label: 'علامة مميزة',
-                            accent: accent,
-                            textColor: textCol,
-                            onTap: () {
-                              selectableRegionState.copySelection(SelectionChangedCause.toolbar);
-                              Clipboard.getData(Clipboard.kTextPlain).then((data) {
-                                if (data?.text != null && data!.text!.isNotEmpty) {
-                                  _addBookmark(data.text!);
-                                }
-                              });
-                              selectableRegionState.hideToolbar();
-                            },
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ],
-              );
-            },
-            child: GestureDetector(
-              onDoubleTap: _resetZoom,
-              onScaleStart: _onScaleStart,
-              onScaleUpdate: _onScaleUpdate,
-              onScaleEnd: _onScaleEnd,
-              child: Directionality(
-                textDirection: TextDirection.ltr,
-                child: RawScrollbar(
-                controller: _scrollController,
-                thumbVisibility: false,
-                trackVisibility: false,
-                thickness: 4.5,
-                radius: const Radius.circular(8),
-                fadeDuration: const Duration(milliseconds: 400),
-                timeToFade: const Duration(milliseconds: 800),
-                thumbColor: isDark
-                    ? AppColors.gold.withValues(alpha: 0.45)
-                    : AppColors.emeraldGreen.withValues(alpha: 0.35),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-                minThumbLength: 80,
-                child: Directionality(
-                  textDirection: TextDirection.rtl,
-                  child: SingleChildScrollView(
-                controller: _scrollController,
-                physics: _isScaling
-                    ? const NeverScrollableScrollPhysics()
-                    : const SmoothScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    RepaintBoundary(
-                      child: DetailHeader(
-                        title: widget.part.title,
-                        subtitle: widget.part.subtitle,
-                        fontSize: _fontSize,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    RepaintBoundary(
-                      child: Consumer<BookmarksProvider>(
-                        builder: (context, bookProvider, _) {
-                          final bookmarkedTexts =
-                              bookProvider.getBookmarkTexts(widget.part.id);
-                          return AnimatedBuilder(
-                            animation: _highlightController,
-                            builder: (context, _) {
-                              return ContentBody(
-                                content: widget.part.content,
-                                fontSize: _fontSize,
-                                isDark: isDark,
-                                searchQuery: widget.searchQuery,
-                                activeSearchMatchIndex: _currentMatchIndex,
-                                bookmarkedTexts: bookmarkedTexts,
-                                highlightText: _highlightText,
-                                highlightOpacity: _highlightText != null
-                                    ? (1.0 - _highlightController.value).clamp(0.0, 1.0)
-                                    : 0.0,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const ZoomInstructions(),
-                  ],
                 ),
               ),
-              ),
-              ),
+            ),
+
+            // Floating header — slides up & fades as one unified unit
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipRect(
+                child: Transform.translate(
+                  offset: Offset(0, -headerHeight * (1.0 - _appBarVisibility.clamp(0.0, 1.0))),
+                  child: Opacity(
+                    opacity: _appBarVisibility.clamp(0.0, 1.0),
+                    child: IgnorePointer(
+                      ignoring: _appBarVisibility < 0.1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: (isDark ? AppColors.gold : AppColors.emeraldGreen).withValues(alpha: 0.12),
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        child: SafeArea(
+                          bottom: false,
+                          child: SizedBox(
+                            height: kToolbarHeight,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => Navigator.of(context).pop(),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 20,
+                                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Hero(
+                                      tag: 'hizb_title_${widget.part.id}',
+                                      flightShuttleBuilder: (_, __, ___, ____, toCtx) {
+                                        return DefaultTextStyle(
+                                          style: DefaultTextStyle.of(toCtx).style,
+                                          child: toCtx.widget,
+                                        );
+                                      },
+                                      child: Text(
+                                        widget.part.title,
+                                        style: TextStyle(
+                                          fontFamily: 'Amiri',
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  _buildBookmarkAction(isDark),
+                                  const SizedBox(width: 4),
+                                  _buildFavoriteAction(isDark),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
 
             // Floating search navigation bar
             if (widget.searchQuery.isNotEmpty && _searchMatches.length > 1)
@@ -630,6 +615,123 @@ class _DetailScreenState extends State<DetailScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContextMenu(BuildContext context, SelectableRegionState selectableRegionState) {
+    final isDk = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDk ? AppColors.gold : AppColors.emeraldGreen;
+    final bg = isDk ? const Color(0xFF1A2E20) : const Color(0xFFF5F9F5);
+    final textCol = isDk ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    return AdaptiveTextSelectionToolbar(
+      anchors: selectableRegionState.contextMenuAnchors,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.25), width: 1),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: isDk ? 0.3 : 0.12), blurRadius: 12, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildMenuBtn(icon: Icons.copy_rounded, label: '\u0646\u0633\u062e', accent: accent, textColor: textCol, onTap: () {
+                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                  selectableRegionState.hideToolbar();
+                  HapticFeedback.lightImpact();
+                  ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+                    content: const Text('\u062a\u0645 \u0646\u0633\u062e \u0627\u0644\u0646\u0635', style: TextStyle(fontFamily: 'ScheherazadeNew')),
+                    backgroundColor: isDk ? AppColors.gold : AppColors.emeraldGreen,
+                    duration: const Duration(milliseconds: 1200),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  ));
+                }),
+                Container(width: 1, height: 28, color: accent.withValues(alpha: 0.15)),
+                _buildMenuBtn(icon: Icons.bookmark_add_rounded, label: '\u0639\u0644\u0627\u0645\u0629 \u0645\u0645\u064a\u0632\u0629', accent: accent, textColor: textCol, onTap: () async {
+                  // Copy selection to clipboard, then read it back
+                  selectableRegionState.copySelection(SelectionChangedCause.toolbar);
+                  selectableRegionState.hideToolbar();
+                  // Wait for clipboard write to complete
+                  await Future.delayed(const Duration(milliseconds: 200));
+                  final data = await Clipboard.getData(Clipboard.kTextPlain);
+                  if (data?.text != null && data!.text!.trim().isNotEmpty) {
+                    _addBookmark(data.text!);
+                  }
+                }),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBookmarkAction(bool isDark) {
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    return Consumer<BookmarksProvider>(
+      builder: (context, bookProvider, _) {
+        final count = bookProvider.getCount(widget.part.id);
+        final hasBookmarks = count > 0;
+        return GestureDetector(
+          onTap: _showBookmarksPanel,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: hasBookmarks ? accent.withValues(alpha: isDark ? 0.15 : 0.10) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              border: hasBookmarks ? Border.all(color: accent.withValues(alpha: 0.25), width: 1) : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(hasBookmarks ? Icons.auto_stories_rounded : Icons.auto_stories_outlined, size: 20, color: accent),
+                if (hasBookmarks) ...[
+                  const SizedBox(width: 4),
+                  Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Amiri', color: accent)),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFavoriteAction(bool isDark) {
+    return Consumer<FavoritesProvider>(
+      builder: (context, favProvider, _) {
+        final isFav = favProvider.isFavorite(widget.part.id);
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            favProvider.toggleFavorite(widget.part.id, context);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isFav ? Colors.red.shade600.withValues(alpha: 0.12) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              border: isFav ? Border.all(color: Colors.red.shade600.withValues(alpha: 0.25), width: 1) : null,
+            ),
+            child: Icon(
+              isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: 20,
+              color: isFav ? Colors.red.shade600 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -674,7 +776,7 @@ class _DetailScreenState extends State<DetailScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'تم نسخ المحتوى بنجاح',
+          '\u062a\u0645 \u0646\u0633\u062e \u0627\u0644\u0645\u062d\u062a\u0648\u0649 \u0628\u0646\u062c\u0627\u062d',
           style: TextStyle(
             fontFamily: 'ScheherazadeNew',
             color: isDark ? AppColors.darkTextPrimary : Colors.white,
