@@ -373,6 +373,56 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
+  /// Returns the exact scroll-space Y coordinate of a character at [localOffset]
+  /// inside chunk [chunkIndex], using GlobalKey + TextPainter.
+  /// Returns null if the chunk isn't rendered yet.
+  double? _getExactPixelY(int chunkIndex, int localOffset) {
+    final chunkKey = _chunkKeys[chunkIndex];
+    if (chunkKey?.currentContext == null) return null;
+
+    final renderBox = chunkKey!.currentContext!.findRenderObject() as RenderBox;
+
+    // Get chunk's top in scroll-space coordinates
+    // localToGlobal gives screen position, add scrollOffset to get scroll-space
+    final chunkScreenPos = renderBox.localToGlobal(Offset.zero);
+    final chunkTopInScroll = chunkScreenPos.dy + _scrollController.offset;
+
+    // Use TextPainter with the EXACT same style as ContentBody._buildBodyText
+    final chunks = _splitChunks(widget.part.content);
+    if (chunkIndex >= chunks.length) return chunkTopInScroll;
+
+    final cleanText = _cleanChunk(chunks[chunkIndex]);
+    if (cleanText.isEmpty) return chunkTopInScroll;
+
+    final clampedOffset = localOffset.clamp(0, cleanText.length);
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: cleanText,
+        style: TextStyle(
+          fontFamily: 'ScheherazadeNew',
+          fontSize: _fontSize,
+          height: 1.9,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 0.1,
+        ),
+      ),
+      textDirection: TextDirection.rtl,
+      textAlign: TextAlign.justify,
+    );
+
+    // Layout with the same width as the actual rendered text
+    textPainter.layout(maxWidth: renderBox.size.width);
+
+    final caretOffset = textPainter.getOffsetForCaret(
+      TextPosition(offset: clampedOffset),
+      Rect.zero,
+    );
+    textPainter.dispose();
+
+    return chunkTopInScroll + caretOffset.dy;
+  }
+
   void _scrollToBookmark(Bookmark bookmark) {
     if (!_scrollController.hasClients) return;
     final maxScroll = _scrollController.position.maxScrollExtent;
@@ -380,36 +430,15 @@ class _DetailScreenState extends State<DetailScreen>
 
     final viewportHeight = _scrollController.position.viewportDimension;
 
-    // Use GlobalKey for precise positioning
-    final chunkKey = _chunkKeys[bookmark.chunkIndex];
+    // Get exact pixel Y of the bookmarked character using TextPainter
+    final exactY = _getExactPixelY(bookmark.chunkIndex, bookmark.localStart);
+
     double targetOffset;
-
-    if (chunkKey != null && chunkKey.currentContext != null) {
-      // Get the chunk widget's exact position in the scroll view
-      final renderBox = chunkKey.currentContext!.findRenderObject() as RenderBox;
-      final scrollRenderBox = _scrollController.position.context.storageContext
-          .findRenderObject() as RenderBox;
-      final chunkPosition = renderBox.localToGlobal(Offset.zero, ancestor: scrollRenderBox);
-
-      // The chunk's top relative to the scroll view's top
-      final chunkTopInScroll = chunkPosition.dy + _scrollController.offset;
-
-      // Estimate position within the chunk based on character fraction
-      final chunks = _splitChunks(widget.part.content);
-      final chunkText = bookmark.chunkIndex < chunks.length
-          ? _cleanChunk(chunks[bookmark.chunkIndex])
-          : '';
-      final chunkHeight = renderBox.size.height;
-      final fractionInChunk = chunkText.isNotEmpty
-          ? bookmark.localStart / chunkText.length
-          : 0.0;
-      final offsetInChunk = fractionInChunk * chunkHeight;
-
-      // Center the bookmark in the viewport
-      targetOffset = (chunkTopInScroll + offsetInChunk - viewportHeight * 0.35)
-          .clamp(0.0, maxScroll);
+    if (exactY != null) {
+      // Center the bookmarked text in the viewport (at ~35% from top)
+      targetOffset = (exactY - viewportHeight * 0.35).clamp(0.0, maxScroll);
     } else {
-      // Fallback: fraction-based calculation
+      // Fallback: fraction-based calculation (only if chunk not rendered)
       final chunks = _splitChunks(widget.part.content);
       int globalCharPos = 0;
       for (int i = 0; i < bookmark.chunkIndex && i < chunks.length; i++) {
@@ -560,37 +589,28 @@ class _DetailScreenState extends State<DetailScreen>
 
     // Find ALL occurrences across all chunks with their chunk-local positions
     final allMatches = <({int chunkIndex, int localStart, int localEnd})>[];
-    int cumulativeChars = 0;
     for (int i = 0; i < chunks.length; i++) {
       final cleaned = _cleanChunk(chunks[i]);
       for (final (start, end) in findNormalizedMatches(cleaned, normalizedQuery)) {
         allMatches.add((chunkIndex: i, localStart: start, localEnd: end));
       }
-      cumulativeChars += cleaned.length;
     }
 
     if (allMatches.isEmpty) return;
 
-    // Pick the occurrence closest to the current scroll position
+    // Pick the occurrence closest to the viewport center using EXACT pixel positions
     int bestIdx = 0;
-    if (allMatches.length > 1 && _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
-      final scrollFraction = (_scrollController.offset / _scrollController.position.maxScrollExtent).clamp(0.0, 1.0);
-      // Compute approximate global char position from scroll
-      int totalChars = 0;
-      for (final chunk in chunks) {
-        totalChars += _cleanChunk(chunk).length;
-      }
-      final approxCharPos = (scrollFraction * totalChars).round();
+    if (allMatches.length > 1 && _scrollController.hasClients) {
+      final viewportCenter = _scrollController.offset +
+          _scrollController.position.viewportDimension / 2;
 
-      int bestDist = totalChars;
+      double bestDist = double.infinity;
       for (int m = 0; m < allMatches.length; m++) {
-        // Compute global position of this match
-        int globalPos = 0;
-        for (int c = 0; c < allMatches[m].chunkIndex; c++) {
-          globalPos += _cleanChunk(chunks[c]).length;
-        }
-        globalPos += allMatches[m].localStart;
-        final dist = (globalPos - approxCharPos).abs();
+        final match = allMatches[m];
+        final matchPixelY = _getExactPixelY(match.chunkIndex, match.localStart);
+        if (matchPixelY == null) continue;
+
+        final dist = (matchPixelY - viewportCenter).abs();
         if (dist < bestDist) {
           bestDist = dist;
           bestIdx = m;
