@@ -18,6 +18,7 @@ class ContentBody extends StatelessWidget {
   final int? activeBookmarkChunkIndex;  // actively navigated bookmark chunk
   final int? activeBookmarkLocalStart;  // actively navigated bookmark start
   final int? activeBookmarkLocalEnd;    // actively navigated bookmark end
+  final Map<int, GlobalKey> chunkKeys;  // keys for precise scroll positioning
 
   const ContentBody({
     super.key,
@@ -34,6 +35,7 @@ class ContentBody extends StatelessWidget {
     this.activeBookmarkChunkIndex,
     this.activeBookmarkLocalStart,
     this.activeBookmarkLocalEnd,
+    this.chunkKeys = const {},
   });
 
   @override
@@ -247,7 +249,9 @@ class ContentBody extends StatelessWidget {
         final normalizedQuery = normalizeArabic(searchQuery);
         globalSearchOffset += findNormalizedMatches(text, normalizedQuery).length;
       }
-      return result;
+      // Wrap with key for precise scroll positioning
+      final key = chunkKeys[idx];
+      return key != null ? KeyedSubtree(key: key, child: result) : result;
     }
 
     if (!content.contains('§SECTION§')) {

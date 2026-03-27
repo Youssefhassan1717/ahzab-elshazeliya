@@ -53,6 +53,9 @@ class _DetailScreenState extends State<DetailScreen>
   int _currentBookmarkIndex = -1;
   bool _showBookmarkNav = false;
 
+  // GlobalKeys for each text chunk — for precise scroll positioning
+  final Map<int, GlobalKey> _chunkKeys = {};
+
   // AppBar hide/show on scroll
   double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
   double _lastScrollOffset = 0.0;
@@ -80,6 +83,12 @@ class _DetailScreenState extends State<DetailScreen>
     );
 
     _scrollController.addListener(_onScroll);
+
+    // Pre-create GlobalKeys for each text chunk
+    final chunks = _splitChunks(widget.part.content);
+    for (int i = 0; i < chunks.length; i++) {
+      _chunkKeys[i] = GlobalKey();
+    }
 
     // Preload bookmarks for this hizb from disk
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -351,6 +360,7 @@ class _DetailScreenState extends State<DetailScreen>
                     activeBookmarkChunkIndex: _activeBookmarkChunkIndex,
                     activeBookmarkLocalStart: _activeBookmarkLocalStart,
                     activeBookmarkLocalEnd: _activeBookmarkLocalEnd,
+                    chunkKeys: _chunkKeys,
                   );
                 },
               );
@@ -368,31 +378,59 @@ class _DetailScreenState extends State<DetailScreen>
     final maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll <= 0) return;
 
-    // Compute global cleaned-char position from chunk data
-    final chunks = _splitChunks(widget.part.content);
-    int globalCharPos = 0;
-    for (int i = 0; i < bookmark.chunkIndex && i < chunks.length; i++) {
-      globalCharPos += _cleanChunk(chunks[i]).length;
-    }
-    globalCharPos += bookmark.localStart;
-
-    // Total cleaned chars across all chunks
-    int totalChars = 0;
-    for (final chunk in chunks) {
-      totalChars += _cleanChunk(chunk).length;
-    }
-    if (totalChars == 0) return;
-
-    // Same fraction-based scroll math as search navigation
-    final fraction = globalCharPos / totalChars;
     final viewportHeight = _scrollController.position.viewportDimension;
-    final totalScrollableHeight = maxScroll + viewportHeight;
 
-    const contentStartOffset = 270.0;
-    const contentEndPadding = 112.0;
-    final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
-    final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
-    final targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
+    // Use GlobalKey for precise positioning
+    final chunkKey = _chunkKeys[bookmark.chunkIndex];
+    double targetOffset;
+
+    if (chunkKey != null && chunkKey.currentContext != null) {
+      // Get the chunk widget's exact position in the scroll view
+      final renderBox = chunkKey.currentContext!.findRenderObject() as RenderBox;
+      final scrollRenderBox = _scrollController.position.context.storageContext
+          .findRenderObject() as RenderBox;
+      final chunkPosition = renderBox.localToGlobal(Offset.zero, ancestor: scrollRenderBox);
+
+      // The chunk's top relative to the scroll view's top
+      final chunkTopInScroll = chunkPosition.dy + _scrollController.offset;
+
+      // Estimate position within the chunk based on character fraction
+      final chunks = _splitChunks(widget.part.content);
+      final chunkText = bookmark.chunkIndex < chunks.length
+          ? _cleanChunk(chunks[bookmark.chunkIndex])
+          : '';
+      final chunkHeight = renderBox.size.height;
+      final fractionInChunk = chunkText.isNotEmpty
+          ? bookmark.localStart / chunkText.length
+          : 0.0;
+      final offsetInChunk = fractionInChunk * chunkHeight;
+
+      // Center the bookmark in the viewport
+      targetOffset = (chunkTopInScroll + offsetInChunk - viewportHeight * 0.35)
+          .clamp(0.0, maxScroll);
+    } else {
+      // Fallback: fraction-based calculation
+      final chunks = _splitChunks(widget.part.content);
+      int globalCharPos = 0;
+      for (int i = 0; i < bookmark.chunkIndex && i < chunks.length; i++) {
+        globalCharPos += _cleanChunk(chunks[i]).length;
+      }
+      globalCharPos += bookmark.localStart;
+
+      int totalChars = 0;
+      for (final chunk in chunks) {
+        totalChars += _cleanChunk(chunk).length;
+      }
+      if (totalChars == 0) return;
+
+      final fraction = globalCharPos / totalChars;
+      final totalScrollableHeight = maxScroll + viewportHeight;
+      const contentStartOffset = 270.0;
+      const contentEndPadding = 112.0;
+      final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
+      final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
+      targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
+    }
 
     _scrollController.animateTo(
       targetOffset,
@@ -853,7 +891,22 @@ class _DetailScreenState extends State<DetailScreen>
                 Icon(hasBookmarks ? Icons.auto_stories_rounded : Icons.auto_stories_outlined, size: 20, color: accent),
                 if (hasBookmarks) ...[
                   const SizedBox(width: 4),
-                  Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Amiri', color: accent)),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    switchInCurve: Curves.easeOutBack,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) {
+                      return ScaleTransition(
+                        scale: animation,
+                        child: FadeTransition(opacity: animation, child: child),
+                      );
+                    },
+                    child: Text(
+                      '$count',
+                      key: ValueKey<int>(count),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Amiri', color: accent),
+                    ),
+                  ),
                 ],
               ],
             ),
