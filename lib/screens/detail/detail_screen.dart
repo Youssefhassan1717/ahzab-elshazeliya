@@ -56,6 +56,8 @@ class _DetailScreenState extends State<DetailScreen>
 
   // GlobalKeys for each text chunk — for precise scroll positioning
   final Map<int, GlobalKey> _chunkKeys = {};
+  // GlobalKey for the scroll view — used to get exact viewport screen position
+  final GlobalKey _scrollViewKey = GlobalKey();
 
   // AppBar hide/show on scroll
   double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
@@ -419,13 +421,13 @@ class _DetailScreenState extends State<DetailScreen>
     // 2. Convert character position to screen coordinates
     final globalPos = rp.localToGlobal(Offset(0, localY));
 
-    // 3. Get the scrollable viewport's screen-top
-    final scrollableRenderObj = _scrollController.position.context.storageContext
-        .findRenderObject() as RenderBox;
-    final scrollableTop = scrollableRenderObj.localToGlobal(Offset.zero).dy;
+    // 3. Get the scroll view's EXACT screen-top via its GlobalKey
+    final scrollViewBox = _scrollViewKey.currentContext?.findRenderObject() as RenderBox?;
+    if (scrollViewBox == null) return null;
+    final scrollViewTop = scrollViewBox.localToGlobal(Offset.zero).dy;
 
-    // 4. Correct scroll offset = current offset + (screen delta from viewport top)
-    return _scrollController.offset + (globalPos.dy - scrollableTop);
+    // 4. Correct scroll offset = current offset + (screen delta from scroll view top)
+    return _scrollController.offset + (globalPos.dy - scrollViewTop);
   }
 
   void _scrollToBookmark(Bookmark bookmark) {
@@ -731,6 +733,7 @@ class _DetailScreenState extends State<DetailScreen>
                         child: Directionality(
                           textDirection: TextDirection.rtl,
                           child: SingleChildScrollView(
+                            key: _scrollViewKey,
                             controller: _scrollController,
                             physics: _isScaling
                                 ? const NeverScrollableScrollPhysics()
