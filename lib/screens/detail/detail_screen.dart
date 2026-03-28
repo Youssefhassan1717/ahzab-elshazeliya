@@ -394,97 +394,57 @@ class _DetailScreenState extends State<DetailScreen>
     return result;
   }
 
-  /// Returns the exact scroll-space Y of a character at [localOffset] in chunk [chunkIndex].
-  /// Uses the ACTUAL rendered RenderParagraph — zero reconstruction, zero guessing.
-  double? _getExactPixelY(int chunkIndex, int localOffset) {
+  /// Scrolls to make a specific character visible, using Flutter's built-in
+  /// RenderObject.showOnScreen() — zero manual coordinate math.
+  void _scrollToCharInChunk(int chunkIndex, int localOffset) {
     final chunkKey = _chunkKeys[chunkIndex];
-    if (chunkKey == null) return null;
+    if (chunkKey == null) return;
 
     final rp = _findRenderParagraph(chunkKey);
-    if (rp == null) return null;
+    if (rp == null) return;
 
     final chunks = _splitChunks(widget.part.content);
-    if (chunkIndex >= chunks.length) return null;
+    if (chunkIndex >= chunks.length) return;
 
     final cleanText = _cleanChunk(chunks[chunkIndex]);
-    if (cleanText.isEmpty) return null;
+    if (cleanText.isEmpty) return;
 
     final clampedOffset = localOffset.clamp(0, cleanText.length);
     final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
 
-    // 1. Get the actual rendered box for this character
+    // Get the exact rendered box for this character
     final boxes = rp.getBoxesForSelection(
       TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
     );
-    if (boxes.isEmpty) return null;
+    if (boxes.isEmpty) return;
     final box = boxes.first;
 
-    // 2. Get GLOBAL (screen) position of this character
-    final charGlobal = rp.localToGlobal(Offset(box.left, box.top));
+    // Build a rect around the character in paragraph-local coordinates
+    // Add some vertical padding so it's not at the very edge of the viewport
+    final viewportHeight = _scrollController.hasClients
+        ? _scrollController.position.viewportDimension
+        : 600.0;
+    final paddingAbove = viewportHeight * 0.3;
 
-    // 3. Get GLOBAL (screen) position of the scroll view viewport
-    final scrollViewRenderObj = _scrollViewKey.currentContext?.findRenderObject();
-    if (scrollViewRenderObj == null || scrollViewRenderObj is! RenderBox) return null;
-    final viewportGlobal = scrollViewRenderObj.localToGlobal(Offset.zero);
+    final rect = Rect.fromLTRB(
+      box.left,
+      box.top - paddingAbove,  // scroll so char is ~30% from top
+      box.right,
+      box.bottom + 20,
+    );
 
-    // 4. Compute correct scroll content offset:
-    //    current scroll offset + how far the char is below the viewport top on screen
-    final targetOffset = _scrollController.offset + (charGlobal.dy - viewportGlobal.dy);
-
-    // DEBUG (remove after verifying):
-    debugPrint('[BOOKMARK SCROLL] charGlobal.dy=${charGlobal.dy.toStringAsFixed(1)}, '
-        'viewportGlobal.dy=${viewportGlobal.dy.toStringAsFixed(1)}, '
-        'scrollOffset=${_scrollController.offset.toStringAsFixed(1)}, '
-        'targetOffset=${targetOffset.toStringAsFixed(1)}');
-
-    return targetOffset;
-  }
-
-  void _scrollToBookmark(Bookmark bookmark) {
-    if (!_scrollController.hasClients) return;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    if (maxScroll <= 0) return;
-
-    final viewportHeight = _scrollController.position.viewportDimension;
-
-    // Get exact pixel Y of the bookmarked character using the real RenderParagraph
-    final exactY = _getExactPixelY(bookmark.chunkIndex, bookmark.localStart);
-
-    double targetOffset;
-    if (exactY != null) {
-      // Place the bookmarked word at ~30% from the top of viewport
-      targetOffset = (exactY - viewportHeight * 0.3).clamp(0.0, maxScroll);
-      debugPrint('[BOOKMARK SCROLL] exactY=$exactY, viewportH=$viewportHeight, '
-          'finalTarget=${targetOffset.toStringAsFixed(1)}, maxScroll=${maxScroll.toStringAsFixed(1)}');
-    } else {
-      // Fallback: fraction-based calculation (only if chunk not rendered)
-      final chunks = _splitChunks(widget.part.content);
-      int globalCharPos = 0;
-      for (int i = 0; i < bookmark.chunkIndex && i < chunks.length; i++) {
-        globalCharPos += _cleanChunk(chunks[i]).length;
-      }
-      globalCharPos += bookmark.localStart;
-
-      int totalChars = 0;
-      for (final chunk in chunks) {
-        totalChars += _cleanChunk(chunk).length;
-      }
-      if (totalChars == 0) return;
-
-      final fraction = globalCharPos / totalChars;
-      final totalScrollableHeight = maxScroll + viewportHeight;
-      const contentStartOffset = 270.0;
-      const contentEndPadding = 112.0;
-      final contentBodyHeight = totalScrollableHeight - contentStartOffset - contentEndPadding;
-      final matchPixelPos = contentStartOffset + (fraction * contentBodyHeight);
-      targetOffset = (matchPixelPos - viewportHeight * 0.35).clamp(0.0, maxScroll);
-    }
-
-    _scrollController.animateTo(
-      targetOffset,
+    // showOnScreen walks up the render tree, finds the Scrollable,
+    // and scrolls it correctly — no manual coordinate conversion needed.
+    rp.showOnScreen(
+      rect: rect,
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeInOutCubic,
     );
+  }
+
+  void _scrollToBookmark(Bookmark bookmark) {
+    // Use Flutter's built-in showOnScreen for bulletproof scrolling
+    _scrollToCharInChunk(bookmark.chunkIndex, bookmark.localStart);
 
     // Set persistent active bookmark highlight
     setState(() {
