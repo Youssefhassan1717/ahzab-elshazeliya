@@ -416,18 +416,28 @@ class _DetailScreenState extends State<DetailScreen>
     final boxes = rp.getBoxesForSelection(
       TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
     );
-    final localY = boxes.isNotEmpty ? boxes.first.top : 0.0;
+    if (boxes.isEmpty) return null;
+    final box = boxes.first;
 
-    // 2. Convert character position to screen coordinates
-    final globalPos = rp.localToGlobal(Offset(0, localY));
+    // 2. Get GLOBAL (screen) position of this character
+    final charGlobal = rp.localToGlobal(Offset(box.left, box.top));
 
-    // 3. Get the scroll view's EXACT screen-top via its GlobalKey
-    final scrollViewBox = _scrollViewKey.currentContext?.findRenderObject() as RenderBox?;
-    if (scrollViewBox == null) return null;
-    final scrollViewTop = scrollViewBox.localToGlobal(Offset.zero).dy;
+    // 3. Get GLOBAL (screen) position of the scroll view viewport
+    final scrollViewRenderObj = _scrollViewKey.currentContext?.findRenderObject();
+    if (scrollViewRenderObj == null || scrollViewRenderObj is! RenderBox) return null;
+    final viewportGlobal = scrollViewRenderObj.localToGlobal(Offset.zero);
 
-    // 4. Correct scroll offset = current offset + (screen delta from scroll view top)
-    return _scrollController.offset + (globalPos.dy - scrollViewTop);
+    // 4. Compute correct scroll content offset:
+    //    current scroll offset + how far the char is below the viewport top on screen
+    final targetOffset = _scrollController.offset + (charGlobal.dy - viewportGlobal.dy);
+
+    // DEBUG (remove after verifying):
+    debugPrint('[BOOKMARK SCROLL] charGlobal.dy=${charGlobal.dy.toStringAsFixed(1)}, '
+        'viewportGlobal.dy=${viewportGlobal.dy.toStringAsFixed(1)}, '
+        'scrollOffset=${_scrollController.offset.toStringAsFixed(1)}, '
+        'targetOffset=${targetOffset.toStringAsFixed(1)}');
+
+    return targetOffset;
   }
 
   void _scrollToBookmark(Bookmark bookmark) {
@@ -442,8 +452,10 @@ class _DetailScreenState extends State<DetailScreen>
 
     double targetOffset;
     if (exactY != null) {
-      // Center the bookmarked text in the viewport (at ~35% from top)
-      targetOffset = (exactY - viewportHeight * 0.35).clamp(0.0, maxScroll);
+      // Place the bookmarked word at ~30% from the top of viewport
+      targetOffset = (exactY - viewportHeight * 0.3).clamp(0.0, maxScroll);
+      debugPrint('[BOOKMARK SCROLL] exactY=$exactY, viewportH=$viewportHeight, '
+          'finalTarget=${targetOffset.toStringAsFixed(1)}, maxScroll=${maxScroll.toStringAsFixed(1)}');
     } else {
       // Fallback: fraction-based calculation (only if chunk not rendered)
       final chunks = _splitChunks(widget.part.content);
@@ -958,7 +970,7 @@ class _DetailScreenState extends State<DetailScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(hasBookmarks ? Icons.auto_stories_rounded : Icons.auto_stories_outlined, size: 20, color: accent),
-                if (hasBookmarks) ...[
+                if (count > 1) ...[
                   const SizedBox(width: 4),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
