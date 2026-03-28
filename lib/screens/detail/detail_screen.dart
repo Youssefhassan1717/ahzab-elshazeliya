@@ -1,6 +1,6 @@
 ﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/arabic_normalizer.dart';
@@ -394,8 +394,8 @@ class _DetailScreenState extends State<DetailScreen>
     return result;
   }
 
-  /// Scrolls to make a specific character visible, using Flutter's built-in
-  /// RenderObject.showOnScreen() — zero manual coordinate math.
+  /// Scrolls to make a specific character visible using getOffsetToReveal,
+  /// which correctly handles nested RepaintBoundary, SelectionArea, etc.
   void _scrollToCharInChunk(int chunkIndex, int localOffset) {
     if (!_scrollController.hasClients) return;
 
@@ -405,48 +405,42 @@ class _DetailScreenState extends State<DetailScreen>
     final rp = _findRenderParagraph(chunkKey);
     if (rp == null) return;
 
+    // Use getOffsetToReveal — correctly traverses nested widget layers.
+    // The 0.3 alignment places the target ~30% from top of viewport.
+    final viewport = RenderAbstractViewport.of(rp);
+    final offsetToReveal = viewport.getOffsetToReveal(rp, 0.3);
+
+    // Adjust for the character's vertical position within the paragraph
     final chunks = _splitChunks(widget.part.content);
-    if (chunkIndex >= chunks.length) return;
+    if (chunkIndex < chunks.length) {
+      final cleanText = _cleanChunk(chunks[chunkIndex]);
+      if (cleanText.isNotEmpty) {
+        final clampedOffset = localOffset.clamp(0, cleanText.length);
+        final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
+        final boxes = rp.getBoxesForSelection(
+          TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
+        );
+        if (boxes.isNotEmpty) {
+          final charY = boxes.first.top;
+          final maxScroll = _scrollController.position.maxScrollExtent;
+          final targetOffset = (offsetToReveal.offset + charY).clamp(0.0, maxScroll);
 
-    final cleanText = _cleanChunk(chunks[chunkIndex]);
-    if (cleanText.isEmpty) return;
+          _scrollController.animateTo(
+            targetOffset,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+          return;
+        }
+      }
+    }
 
-    final clampedOffset = localOffset.clamp(0, cleanText.length);
-    final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
-
-    // Get the exact rendered box for this character
-    final boxes = rp.getBoxesForSelection(
-      TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
-    );
-    if (boxes.isEmpty) return;
-    final box = boxes.first;
-
-    // Convert the character's local position to global screen position,
-    // then compute the scroll offset needed to center it ~30% from the top.
-    final charLocalCenter = Offset(box.left, (box.top + box.bottom) / 2);
-    final charGlobalPos = rp.localToGlobal(charLocalCenter);
-
-    // Get the scroll view's global top position
-    final scrollViewRO = _scrollViewKey.currentContext?.findRenderObject();
-    final scrollViewGlobalTop = scrollViewRO != null
-        ? (scrollViewRO as RenderBox).localToGlobal(Offset.zero).dy
-        : 0.0;
-
-    // Current scroll position + character's offset from scroll view top
-    final charOffsetInScrollContent =
-        _scrollController.offset + (charGlobalPos.dy - scrollViewGlobalTop);
-
-    final viewportHeight = _scrollController.position.viewportDimension;
+    // Fallback: scroll to paragraph top
     final maxScroll = _scrollController.position.maxScrollExtent;
-
-    // Place the character ~30% from the top of the viewport
-    final targetOffset =
-        (charOffsetInScrollContent - viewportHeight * 0.3).clamp(0.0, maxScroll);
-
     _scrollController.animateTo(
-      targetOffset,
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeInOutCubic,
+      offsetToReveal.offset.clamp(0.0, maxScroll),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
     );
   }
 
