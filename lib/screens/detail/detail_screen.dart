@@ -570,9 +570,13 @@ class _DetailScreenState extends State<DetailScreen>
     int? localEnd;
 
     // ── Strategy: Use the ACTUAL selection screen position ──
-    // Find the RenderParagraph under the selection, ask it for the
-    // exact character offset, then pick the matching text at that offset.
+    // For each candidate match, compute its on-screen bounding box and
+    // pick the one closest to the known selection anchor. This is far more
+    // reliable than estimating a single pixel from the context-menu anchor,
+    // especially when the same word appears multiple times in the chunk.
     if (selectionScreenPos != null) {
+      double bestGlobalDist = double.infinity;
+
       for (final entry in _chunkKeys.entries) {
         final rp = _findRenderParagraph(entry.value);
         if (rp == null) continue;
@@ -583,34 +587,32 @@ class _DetailScreenState extends State<DetailScreen>
         // Check if the position falls within this paragraph (with tolerance)
         final tolerance = _fontSize * 2;
         if (localPos.dy >= -tolerance && localPos.dy <= rp.size.height + tolerance) {
-          targetChunkIdx = entry.key;
-
-          // Ask the REAL rendered paragraph for the character at this pixel
-          final textPos = rp.getPositionForOffset(localPos);
-          final charOffset = textPos.offset;
-
           // Find all matches in THIS chunk only
           final cleaned = _cleanChunk(chunks[entry.key]);
           final matches = findNormalizedMatches(cleaned, normalizedQuery);
 
-          // Pick the match that CONTAINS charOffset, or nearest to it
-          int bestDist = cleaned.length;
           for (final (s, e) in matches) {
-            if (charOffset >= s && charOffset <= e) {
-              // Exact hit — character is inside this match
-              localStart = s;
-              localEnd = e;
-              bestDist = 0;
-              break;
-            }
-            final dist = charOffset < s ? (s - charOffset) : (charOffset - e);
-            if (dist < bestDist) {
-              bestDist = dist;
+            // Get the screen bounding boxes for this specific match
+            final boxes = rp.getBoxesForSelection(
+              TextSelection(baseOffset: s, extentOffset: e),
+            );
+            if (boxes.isEmpty) continue;
+
+            // Compute the center of the match's first box in local coords
+            final box = boxes.first;
+            final matchCenter = Offset(
+              (box.left + box.right) / 2,
+              (box.top + box.bottom) / 2,
+            );
+
+            final dist = (matchCenter - localPos).distance;
+            if (dist < bestGlobalDist) {
+              bestGlobalDist = dist;
+              targetChunkIdx = entry.key;
               localStart = s;
               localEnd = e;
             }
           }
-          if (localStart != null) break;
         }
       }
     }
@@ -886,11 +888,11 @@ class _DetailScreenState extends State<DetailScreen>
                   // Capture the EXACT selection screen position BEFORE clearing
                   final anchors = selectableRegionState.contextMenuAnchors;
                   final secondary = anchors.secondaryAnchor ?? anchors.primaryAnchor;
-                  // primaryAnchor is ABOVE the text; secondary is at the bottom.
-                  // Compute a point solidly INSIDE the first line of selected text.
+                  // Use midpoint between primary (above selection) and secondary
+                  // (below selection) for the most accurate position inside the text.
                   final selectionScreenPos = Offset(
-                    anchors.primaryAnchor.dx,
-                    anchors.primaryAnchor.dy + _fontSize * 1.9,
+                    (anchors.primaryAnchor.dx + secondary.dx) / 2,
+                    (anchors.primaryAnchor.dy + secondary.dy) / 2,
                   );
 
                   selectableRegionState.copySelection(SelectionChangedCause.toolbar);
