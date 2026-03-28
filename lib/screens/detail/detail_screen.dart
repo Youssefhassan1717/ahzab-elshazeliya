@@ -410,16 +410,22 @@ class _DetailScreenState extends State<DetailScreen>
     final clampedOffset = localOffset.clamp(0, cleanText.length);
     final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
 
-    // Get the actual rendered box for this character from the real layout
+    // 1. Get the actual rendered box for this character
     final boxes = rp.getBoxesForSelection(
       TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
     );
+    final localY = boxes.isNotEmpty ? boxes.first.top : 0.0;
 
-    final double localY = boxes.isNotEmpty ? boxes.first.top : 0.0;
+    // 2. Convert character position to screen coordinates
+    final globalPos = rp.localToGlobal(Offset(0, localY));
 
-    // Convert to scroll-space: screen position of paragraph + scroll offset + local Y
-    final screenPos = rp.localToGlobal(Offset(0, localY));
-    return screenPos.dy + _scrollController.offset;
+    // 3. Get the scrollable viewport's screen-top
+    final scrollableRenderObj = _scrollController.position.context.storageContext
+        .findRenderObject() as RenderBox;
+    final scrollableTop = scrollableRenderObj.localToGlobal(Offset.zero).dy;
+
+    // 4. Correct scroll offset = current offset + (screen delta from viewport top)
+    return _scrollController.offset + (globalPos.dy - scrollableTop);
   }
 
   void _scrollToBookmark(Bookmark bookmark) {
