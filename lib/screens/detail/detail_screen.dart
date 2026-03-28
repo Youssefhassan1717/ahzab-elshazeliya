@@ -1,5 +1,6 @@
 ﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/arabic_normalizer.dart';
@@ -373,54 +374,52 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
-  /// Returns the exact scroll-space Y coordinate of a character at [localOffset]
-  /// inside chunk [chunkIndex], using GlobalKey + TextPainter.
-  /// Returns null if the chunk isn't rendered yet.
+  /// Walks the render tree from a GlobalKey to find the actual RenderParagraph.
+  RenderParagraph? _findRenderParagraph(GlobalKey key) {
+    final renderObj = key.currentContext?.findRenderObject();
+    if (renderObj == null) return null;
+    if (renderObj is RenderParagraph) return renderObj;
+    RenderParagraph? result;
+    void visitor(RenderObject child) {
+      if (result != null) return;
+      if (child is RenderParagraph) {
+        result = child;
+        return;
+      }
+      child.visitChildren(visitor);
+    }
+    renderObj.visitChildren(visitor);
+    return result;
+  }
+
+  /// Returns the exact scroll-space Y of a character at [localOffset] in chunk [chunkIndex].
+  /// Uses the ACTUAL rendered RenderParagraph — zero reconstruction, zero guessing.
   double? _getExactPixelY(int chunkIndex, int localOffset) {
     final chunkKey = _chunkKeys[chunkIndex];
-    if (chunkKey?.currentContext == null) return null;
+    if (chunkKey == null) return null;
 
-    final renderBox = chunkKey!.currentContext!.findRenderObject() as RenderBox;
+    final rp = _findRenderParagraph(chunkKey);
+    if (rp == null) return null;
 
-    // Get chunk's top in scroll-space coordinates
-    // localToGlobal gives screen position, add scrollOffset to get scroll-space
-    final chunkScreenPos = renderBox.localToGlobal(Offset.zero);
-    final chunkTopInScroll = chunkScreenPos.dy + _scrollController.offset;
-
-    // Use TextPainter with the EXACT same style as ContentBody._buildBodyText
     final chunks = _splitChunks(widget.part.content);
-    if (chunkIndex >= chunks.length) return chunkTopInScroll;
+    if (chunkIndex >= chunks.length) return null;
 
     final cleanText = _cleanChunk(chunks[chunkIndex]);
-    if (cleanText.isEmpty) return chunkTopInScroll;
+    if (cleanText.isEmpty) return null;
 
     final clampedOffset = localOffset.clamp(0, cleanText.length);
+    final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
 
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: cleanText,
-        style: TextStyle(
-          fontFamily: 'ScheherazadeNew',
-          fontSize: _fontSize,
-          height: 1.9,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.1,
-        ),
-      ),
-      textDirection: TextDirection.rtl,
-      textAlign: TextAlign.justify,
+    // Get the actual rendered box for this character from the real layout
+    final boxes = rp.getBoxesForSelection(
+      TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
     );
 
-    // Layout with the same width as the actual rendered text
-    textPainter.layout(maxWidth: renderBox.size.width);
+    final double localY = boxes.isNotEmpty ? boxes.first.top : 0.0;
 
-    final caretOffset = textPainter.getOffsetForCaret(
-      TextPosition(offset: clampedOffset),
-      Rect.zero,
-    );
-    textPainter.dispose();
-
-    return chunkTopInScroll + caretOffset.dy;
+    // Convert to scroll-space: screen position of paragraph + scroll offset + local Y
+    final screenPos = rp.localToGlobal(Offset(0, localY));
+    return screenPos.dy + _scrollController.offset;
   }
 
   void _scrollToBookmark(Bookmark bookmark) {
@@ -430,7 +429,7 @@ class _DetailScreenState extends State<DetailScreen>
 
     final viewportHeight = _scrollController.position.viewportDimension;
 
-    // Get exact pixel Y of the bookmarked character using TextPainter
+    // Get exact pixel Y of the bookmarked character using the real RenderParagraph
     final exactY = _getExactPixelY(bookmark.chunkIndex, bookmark.localStart);
 
     double targetOffset;
@@ -578,53 +577,86 @@ class _DetailScreenState extends State<DetailScreen>
     );
   }
 
-  void _addBookmark(String selectedText) {
+  void _addBookmark(String selectedText, {Offset? selectionScreenPos}) {
     if (selectedText.trim().isEmpty) return;
     HapticFeedback.mediumImpact();
     final trimmed = selectedText.trim();
 
-    // Split content into chunks (same way ContentBody does)
     final chunks = _splitChunks(widget.part.content);
     final normalizedQuery = normalizeArabic(trimmed);
 
-    // Find ALL occurrences across all chunks with their chunk-local positions
-    final allMatches = <({int chunkIndex, int localStart, int localEnd})>[];
-    for (int i = 0; i < chunks.length; i++) {
-      final cleaned = _cleanChunk(chunks[i]);
-      for (final (start, end) in findNormalizedMatches(cleaned, normalizedQuery)) {
-        allMatches.add((chunkIndex: i, localStart: start, localEnd: end));
-      }
-    }
+    int? targetChunkIdx;
+    int? localStart;
+    int? localEnd;
 
-    if (allMatches.isEmpty) return;
+    // ── Strategy: Use the ACTUAL selection screen position ──
+    // Find the RenderParagraph under the selection, ask it for the
+    // exact character offset, then pick the matching text at that offset.
+    if (selectionScreenPos != null) {
+      for (final entry in _chunkKeys.entries) {
+        final rp = _findRenderParagraph(entry.value);
+        if (rp == null) continue;
 
-    // Pick the occurrence closest to the viewport center using EXACT pixel positions
-    int bestIdx = 0;
-    if (allMatches.length > 1 && _scrollController.hasClients) {
-      final viewportCenter = _scrollController.offset +
-          _scrollController.position.viewportDimension / 2;
+        // Convert screen position to paragraph-local coordinates
+        final localPos = rp.globalToLocal(selectionScreenPos);
 
-      double bestDist = double.infinity;
-      for (int m = 0; m < allMatches.length; m++) {
-        final match = allMatches[m];
-        final matchPixelY = _getExactPixelY(match.chunkIndex, match.localStart);
-        if (matchPixelY == null) continue;
+        // Check if the position falls within this paragraph (with tolerance)
+        final tolerance = _fontSize * 2;
+        if (localPos.dy >= -tolerance && localPos.dy <= rp.size.height + tolerance) {
+          targetChunkIdx = entry.key;
 
-        final dist = (matchPixelY - viewportCenter).abs();
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = m;
+          // Ask the REAL rendered paragraph for the character at this pixel
+          final textPos = rp.getPositionForOffset(localPos);
+          final charOffset = textPos.offset;
+
+          // Find all matches in THIS chunk only
+          final cleaned = _cleanChunk(chunks[entry.key]);
+          final matches = findNormalizedMatches(cleaned, normalizedQuery);
+
+          // Pick the match that CONTAINS charOffset, or nearest to it
+          int bestDist = cleaned.length;
+          for (final (s, e) in matches) {
+            if (charOffset >= s && charOffset <= e) {
+              // Exact hit — character is inside this match
+              localStart = s;
+              localEnd = e;
+              bestDist = 0;
+              break;
+            }
+            final dist = charOffset < s ? (s - charOffset) : (charOffset - e);
+            if (dist < bestDist) {
+              bestDist = dist;
+              localStart = s;
+              localEnd = e;
+            }
+          }
+          if (localStart != null) break;
         }
       }
     }
 
-    final best = allMatches[bestIdx];
+    // ── Fallback: first occurrence (should rarely happen) ──
+    if (localStart == null) {
+      for (int i = 0; i < chunks.length; i++) {
+        final cleaned = _cleanChunk(chunks[i]);
+        final matches = findNormalizedMatches(cleaned, normalizedQuery);
+        if (matches.isNotEmpty) {
+          targetChunkIdx = i;
+          localStart = matches.first.$1;
+          localEnd = matches.first.$2;
+          break;
+        }
+      }
+    }
+
+    if (targetChunkIdx == null || localStart == null || localEnd == null) return;
+
     final provider = context.read<BookmarksProvider>();
     provider.addBookmark(
       widget.part.id, trimmed,
-      chunkIndex: best.chunkIndex,
-      localStart: best.localStart,
-      localEnd: best.localEnd,
+      chunkIndex: targetChunkIdx,
+      localStart: localStart,
+      localEnd: localEnd,
     );
 
     // Show brief feedback
@@ -870,14 +902,22 @@ class _DetailScreenState extends State<DetailScreen>
                 }),
                 Container(width: 1, height: 28, color: accent.withValues(alpha: 0.15)),
                 _buildMenuBtn(icon: Icons.bookmark_add_rounded, label: '\u0639\u0644\u0627\u0645\u0629 \u0645\u0645\u064a\u0632\u0629', accent: accent, textColor: textCol, onTap: () async {
-                  // Copy selection to clipboard, then read it back
+                  // Capture the EXACT selection screen position BEFORE clearing
+                  final anchors = selectableRegionState.contextMenuAnchors;
+                  final secondary = anchors.secondaryAnchor ?? anchors.primaryAnchor;
+                  // primaryAnchor is ABOVE the text; secondary is at the bottom.
+                  // Compute a point solidly INSIDE the first line of selected text.
+                  final selectionScreenPos = Offset(
+                    anchors.primaryAnchor.dx,
+                    anchors.primaryAnchor.dy + _fontSize * 1.9,
+                  );
+
                   selectableRegionState.copySelection(SelectionChangedCause.toolbar);
                   selectableRegionState.hideToolbar();
-                  // Wait for clipboard write to complete
                   await Future.delayed(const Duration(milliseconds: 200));
                   final data = await Clipboard.getData(Clipboard.kTextPlain);
                   if (data?.text != null && data!.text!.trim().isNotEmpty) {
-                    _addBookmark(data.text!);
+                    _addBookmark(data.text!, selectionScreenPos: selectionScreenPos);
                   }
                 }),
               ],
