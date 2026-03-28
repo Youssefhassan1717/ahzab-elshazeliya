@@ -397,6 +397,8 @@ class _DetailScreenState extends State<DetailScreen>
   /// Scrolls to make a specific character visible, using Flutter's built-in
   /// RenderObject.showOnScreen() — zero manual coordinate math.
   void _scrollToCharInChunk(int chunkIndex, int localOffset) {
+    if (!_scrollController.hasClients) return;
+
     final chunkKey = _chunkKeys[chunkIndex];
     if (chunkKey == null) return;
 
@@ -419,24 +421,30 @@ class _DetailScreenState extends State<DetailScreen>
     if (boxes.isEmpty) return;
     final box = boxes.first;
 
-    // Build a rect around the character in paragraph-local coordinates
-    // Add some vertical padding so it's not at the very edge of the viewport
-    final viewportHeight = _scrollController.hasClients
-        ? _scrollController.position.viewportDimension
-        : 600.0;
-    final paddingAbove = viewportHeight * 0.3;
+    // Convert the character's local position to global screen position,
+    // then compute the scroll offset needed to center it ~30% from the top.
+    final charLocalCenter = Offset(box.left, (box.top + box.bottom) / 2);
+    final charGlobalPos = rp.localToGlobal(charLocalCenter);
 
-    final rect = Rect.fromLTRB(
-      box.left,
-      box.top - paddingAbove,  // scroll so char is ~30% from top
-      box.right,
-      box.bottom + 20,
-    );
+    // Get the scroll view's global top position
+    final scrollViewRO = _scrollViewKey.currentContext?.findRenderObject();
+    final scrollViewGlobalTop = scrollViewRO != null
+        ? (scrollViewRO as RenderBox).localToGlobal(Offset.zero).dy
+        : 0.0;
 
-    // showOnScreen walks up the render tree, finds the Scrollable,
-    // and scrolls it correctly — no manual coordinate conversion needed.
-    rp.showOnScreen(
-      rect: rect,
+    // Current scroll position + character's offset from scroll view top
+    final charOffsetInScrollContent =
+        _scrollController.offset + (charGlobalPos.dy - scrollViewGlobalTop);
+
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+
+    // Place the character ~30% from the top of the viewport
+    final targetOffset =
+        (charOffsetInScrollContent - viewportHeight * 0.3).clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      targetOffset,
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeInOutCubic,
     );
