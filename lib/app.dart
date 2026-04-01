@@ -4,7 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'providers/bookmarks_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/theme_provider.dart';
-import 'screens/home/home_screen.dart';
+import 'screens/intro/intro_screen.dart';
 
 class AhzabApp extends StatelessWidget {
   const AhzabApp({super.key});
@@ -27,7 +27,7 @@ class AhzabApp extends StatelessWidget {
             darkTheme: AppTheme.dark,
             themeAnimationDuration: const Duration(milliseconds: 400),
             themeAnimationCurve: Curves.easeInOutCubic,
-            home: const HomeScreen(),
+            home: const IntroScreen(),
           );
         },
       ),

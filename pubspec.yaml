@@ -41,3 +41,18 @@ flutter:
           weight: 600
         - asset: assets/fonts/ScheherazadeNew-Bold.ttf
           weight: 700
+    - family: ElMessiri
+      fonts:
+        - asset: assets/fonts/ElMessiri-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/ElMessiri-Bold.ttf
+          weight: 700
+    - family: ReemKufi
+      fonts:
+        - asset: assets/fonts/ReemKufi-Bold.ttf
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Bold.ttf
+    - family: Rakkas
+      fonts:
+        - asset: assets/fonts/Rakkas-Regular.ttf

@@ -4,7 +4,7 @@ import '../core/theme/app_colors.dart';
 
 class FavoritesProvider extends ChangeNotifier {
   static const String _key = 'favorites_v3';
-  static const int maxFavorites = 4;
+  static const int maxFavorites = 5;
   Set<String> _favorites = <String>{};
 
   Set<String> get favorites => _favorites;
@@ -37,7 +37,7 @@ class FavoritesProvider extends ChangeNotifier {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'الحد الأقصى للأحزاب المميزة هو ٤. قم بإزالة واحد لإضافة آخر.',
+              'الحد الأقصى للأحزاب المميزة هو ٥. قم بإزالة واحد لإضافة آخر.',
               style: TextStyle(fontFamily: 'ScheherazadeNew'),
             ),
             backgroundColor: AppColors.emeraldGreen,

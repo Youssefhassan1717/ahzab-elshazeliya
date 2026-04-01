@@ -115,7 +115,8 @@ class _DetailScreenState extends State<DetailScreen>
   String _cleanContent(String raw) {
     return raw
         .replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ')
-        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r'\n{3,}'), '\n')
+        .replaceAll(RegExp(r'\n{2}'), '\n')
         .replaceAll(RegExp(r' {2,}'), ' ')
         .trim();
   }
@@ -139,7 +140,11 @@ class _DetailScreenState extends State<DetailScreen>
 
   /// Cleans a chunk the same way _buildBodyText does.
   static String _cleanChunk(String raw) {
-    return raw.replaceAll('\n', ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
+    return raw
+        .replaceAll(RegExp(r'\n{3,}'), '\n')
+        .replaceAll(RegExp(r'\n{2}'), '\n')
+        .replaceAll(RegExp(r' {2,}'), ' ')
+        .trim();
   }
 
   void _computeSearchMatches() {
@@ -394,9 +399,10 @@ class _DetailScreenState extends State<DetailScreen>
     return result;
   }
 
-  /// Scrolls to make a specific character visible using getOffsetToReveal,
-  /// which correctly handles nested RepaintBoundary, SelectionArea, etc.
-  void _scrollToCharInChunk(int chunkIndex, int localOffset) {
+  /// Scrolls to make a specific character range visible using
+  /// getOffsetToReveal with the character's rect, which correctly handles
+  /// nested RepaintBoundary, SelectionArea, and large paragraphs.
+  void _scrollToCharInChunk(int chunkIndex, int localStart, {int? localEnd}) {
     if (!_scrollController.hasClients) return;
 
     final chunkKey = _chunkKeys[chunkIndex];
@@ -405,28 +411,31 @@ class _DetailScreenState extends State<DetailScreen>
     final rp = _findRenderParagraph(chunkKey);
     if (rp == null) return;
 
-    // Use getOffsetToReveal — correctly traverses nested widget layers.
-    // The 0.3 alignment places the target ~30% from top of viewport.
     final viewport = RenderAbstractViewport.of(rp);
-    final offsetToReveal = viewport.getOffsetToReveal(rp, 0.3);
 
-    // Adjust for the character's vertical position within the paragraph
+    // Get the exact bounding box of the bookmarked range within the paragraph,
+    // then pass it as `rect` to getOffsetToReveal so Flutter computes
+    // the correct scroll offset — even for huge single-chunk paragraphs.
     final chunks = _splitChunks(widget.part.content);
     if (chunkIndex < chunks.length) {
       final cleanText = _cleanChunk(chunks[chunkIndex]);
       if (cleanText.isNotEmpty) {
-        final clampedOffset = localOffset.clamp(0, cleanText.length);
-        final endOffset = (clampedOffset + 1).clamp(0, cleanText.length);
+        final clampedStart = localStart.clamp(0, cleanText.length);
+        // Use the full bookmark range if provided, otherwise single char
+        final clampedEnd = (localEnd ?? (clampedStart + 1)).clamp(clampedStart, cleanText.length);
         final boxes = rp.getBoxesForSelection(
-          TextSelection(baseOffset: clampedOffset, extentOffset: endOffset),
+          TextSelection(baseOffset: clampedStart, extentOffset: clampedEnd),
         );
         if (boxes.isNotEmpty) {
-          final charY = boxes.first.top;
+          // Use just the first box's position — we want to scroll to where
+          // the bookmark starts, not the center of a multi-line range
+          final charRect = boxes.first.toRect();
+          final offsetToReveal =
+              viewport.getOffsetToReveal(rp, 0.3, rect: charRect);
           final maxScroll = _scrollController.position.maxScrollExtent;
-          final targetOffset = (offsetToReveal.offset + charY).clamp(0.0, maxScroll);
 
           _scrollController.animateTo(
-            targetOffset,
+            offsetToReveal.offset.clamp(0.0, maxScroll),
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeInOut,
           );
@@ -436,6 +445,7 @@ class _DetailScreenState extends State<DetailScreen>
     }
 
     // Fallback: scroll to paragraph top
+    final offsetToReveal = viewport.getOffsetToReveal(rp, 0.3);
     final maxScroll = _scrollController.position.maxScrollExtent;
     _scrollController.animateTo(
       offsetToReveal.offset.clamp(0.0, maxScroll),
@@ -445,8 +455,11 @@ class _DetailScreenState extends State<DetailScreen>
   }
 
   void _scrollToBookmark(Bookmark bookmark) {
-    // Use Flutter's built-in showOnScreen for bulletproof scrolling
-    _scrollToCharInChunk(bookmark.chunkIndex, bookmark.localStart);
+    // Delay slightly so layout settles after bottom sheet dismisses
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToCharInChunk(bookmark.chunkIndex, bookmark.localStart, localEnd: bookmark.localEnd);
+    });
 
     // Set persistent active bookmark highlight
     setState(() {
@@ -555,6 +568,29 @@ class _DetailScreenState extends State<DetailScreen>
             _scrollToBookmark(bookmark);
           });
         },
+        onBookmarkRemoved: (bookmark) {
+          // Clear highlight if the removed bookmark was the active one
+          if (_activeBookmarkChunkIndex == bookmark.chunkIndex &&
+              _activeBookmarkLocalStart == bookmark.localStart &&
+              _activeBookmarkLocalEnd == bookmark.localEnd) {
+            setState(() {
+              _activeBookmarkChunkIndex = null;
+              _activeBookmarkLocalStart = null;
+              _activeBookmarkLocalEnd = null;
+              _flashChunkIndex = null;
+              _flashLocalStart = null;
+              _flashLocalEnd = null;
+            });
+          }
+          // Hide bookmark nav if no bookmarks left
+          final remaining = context.read<BookmarksProvider>().getCount(widget.part.id);
+          if (remaining == 0) {
+            setState(() {
+              _showBookmarkNav = false;
+              _currentBookmarkIndex = -1;
+            });
+          }
+        },
       ),
     );
   }
@@ -571,14 +607,12 @@ class _DetailScreenState extends State<DetailScreen>
     int? localStart;
     int? localEnd;
 
-    // ── Strategy: Use the ACTUAL selection screen position ──
-    // For each candidate match, compute its on-screen bounding box and
-    // pick the one closest to the known selection anchor. This is far more
-    // reliable than estimating a single pixel from the context-menu anchor,
-    // especially when the same word appears multiple times in the chunk.
+    // ── Strategy: Use getPositionForOffset for character-level precision ──
+    // Convert the screen position to a character index via the render
+    // paragraph, then pick the match whose range contains or is nearest
+    // to that character. This is far more reliable than comparing 2D
+    // distances between bounding-box centers and toolbar-anchor midpoints.
     if (selectionScreenPos != null) {
-      double bestGlobalDist = double.infinity;
-
       for (final entry in _chunkKeys.entries) {
         final rp = _findRenderParagraph(entry.value);
         if (rp == null) continue;
@@ -587,33 +621,44 @@ class _DetailScreenState extends State<DetailScreen>
         final localPos = rp.globalToLocal(selectionScreenPos);
 
         // Check if the position falls within this paragraph (with tolerance)
-        final tolerance = _fontSize * 2;
+        final tolerance = _fontSize * 3;
         if (localPos.dy >= -tolerance && localPos.dy <= rp.size.height + tolerance) {
           // Find all matches in THIS chunk only
           final cleaned = _cleanChunk(chunks[entry.key]);
           final matches = findNormalizedMatches(cleaned, normalizedQuery);
+          if (matches.isEmpty) continue;
+
+          // Get the character index at the screen position
+          final textPos = rp.getPositionForOffset(localPos);
+          final charIdx = textPos.offset;
+
+          // Pick the match whose range contains this character,
+          // or failing that, the nearest match by character distance.
+          int? bestStart, bestEnd;
+          double bestDist = double.infinity;
 
           for (final (s, e) in matches) {
-            // Get the screen bounding boxes for this specific match
-            final boxes = rp.getBoxesForSelection(
-              TextSelection(baseOffset: s, extentOffset: e),
-            );
-            if (boxes.isEmpty) continue;
-
-            // Compute the center of the match's first box in local coords
-            final box = boxes.first;
-            final matchCenter = Offset(
-              (box.left + box.right) / 2,
-              (box.top + box.bottom) / 2,
-            );
-
-            final dist = (matchCenter - localPos).distance;
-            if (dist < bestGlobalDist) {
-              bestGlobalDist = dist;
-              targetChunkIdx = entry.key;
-              localStart = s;
-              localEnd = e;
+            if (charIdx >= s && charIdx < e) {
+              // Character falls inside this match — exact hit
+              bestStart = s;
+              bestEnd = e;
+              break;
             }
+            // Distance from character to match midpoint
+            final midpoint = (s + e) / 2;
+            final dist = (charIdx - midpoint).abs();
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestStart = s;
+              bestEnd = e;
+            }
+          }
+
+          if (bestStart != null && bestEnd != null) {
+            targetChunkIdx = entry.key;
+            localStart = bestStart;
+            localEnd = bestEnd;
+            break; // Found match in this chunk, no need to check others
           }
         }
       }
@@ -887,11 +932,9 @@ class _DetailScreenState extends State<DetailScreen>
                 }),
                 Container(width: 1, height: 28, color: accent.withValues(alpha: 0.15)),
                 _buildMenuBtn(icon: Icons.bookmark_add_rounded, label: '\u0639\u0644\u0627\u0645\u0629 \u0645\u0645\u064a\u0632\u0629', accent: accent, textColor: textCol, onTap: () async {
-                  // Capture the EXACT selection screen position BEFORE clearing
+                  // Capture selection position BEFORE clearing
                   final anchors = selectableRegionState.contextMenuAnchors;
                   final secondary = anchors.secondaryAnchor ?? anchors.primaryAnchor;
-                  // Use midpoint between primary (above selection) and secondary
-                  // (below selection) for the most accurate position inside the text.
                   final selectionScreenPos = Offset(
                     (anchors.primaryAnchor.dx + secondary.dx) / 2,
                     (anchors.primaryAnchor.dy + secondary.dy) / 2,

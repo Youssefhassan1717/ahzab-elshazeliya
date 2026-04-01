@@ -156,8 +156,8 @@ class ContentBody extends StatelessWidget {
                       ),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: fontSize > 24 ? 4.0 : 10.0,
                         vertical: 24,
                       ),
                       child: content.isNotEmpty
@@ -282,8 +282,13 @@ class ContentBody extends StatelessWidget {
   }
 
   Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
-    // Replace newlines with spaces so text flows naturally within available width
-    final text = rawText.replaceAll('\n', ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
+    // Collapse multiple blank lines into one newline, collapse multiple spaces,
+    // but preserve single newlines so the text shows proper line breaks.
+    final text = rawText
+        .replaceAll(RegExp(r'\n{3,}'), '\n')
+        .replaceAll(RegExp(r'\n{2}'), '\n')
+        .replaceAll(RegExp(r' {2,}'), ' ')
+        .trim();
 
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
@@ -291,7 +296,7 @@ class ContentBody extends StatelessWidget {
       height: 1.9,
       color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
       fontWeight: FontWeight.w400,
-      letterSpacing: 0.1,
+      letterSpacing: fontSize > 24 ? 0.0 : 0.1,
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -347,8 +352,11 @@ class ContentBody extends StatelessWidget {
       }
     }
 
+    // At large font sizes, justify creates ugly gaps between words
+    final textAlign = fontSize > 26 ? TextAlign.right : TextAlign.justify;
+
     if (allRanges.isEmpty) {
-      return Text(text, style: baseStyle, textAlign: TextAlign.justify);
+      return Text(text, style: baseStyle, textAlign: textAlign, softWrap: true);
     }
 
     // Sort by start position, then by priority (search > flash > bookmark)
@@ -434,7 +442,7 @@ class ContentBody extends StatelessWidget {
 
     return Text.rich(
       TextSpan(style: baseStyle, children: spans),
-      textAlign: TextAlign.justify,
+      textAlign: textAlign,
     );
   }
 
