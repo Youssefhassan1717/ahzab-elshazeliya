@@ -716,7 +716,10 @@ class _DetailScreenState extends State<DetailScreen>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-        body: Stack(
+        body: Column(
+          children: [
+            Expanded(
+              child: Stack(
           children: [
             // Main scrollable content
             Listener(
@@ -818,15 +821,7 @@ class _DetailScreenState extends State<DetailScreen>
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(
-                                    child: Hero(
-                                      tag: 'hizb_title_${widget.part.id}',
-                                      flightShuttleBuilder: (_, __, ___, ____, toCtx) {
-                                        return DefaultTextStyle(
-                                          style: DefaultTextStyle.of(toCtx).style,
-                                          child: toCtx.widget,
-                                        );
-                                      },
-                                      child: Text(
+                                    child: Text(
                                         widget.part.title,
                                         style: TextStyle(
                                           fontFamily: 'Amiri',
@@ -835,7 +830,6 @@ class _DetailScreenState extends State<DetailScreen>
                                           color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
                                         ),
                                         overflow: TextOverflow.ellipsis,
-                                      ),
                                     ),
                                   ),
                                   _buildBookmarkAction(isDark),
@@ -889,6 +883,9 @@ class _DetailScreenState extends State<DetailScreen>
                   ),
                 ),
               ),
+          ],
+        ),
+            ),
           ],
         ),
       ),

@@ -9,6 +9,7 @@ import '../../data/ahzab_data.dart';
 import '../../models/hizb_part.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../support/support_screen.dart';
 import 'widgets/hizb_card.dart';
 import 'widgets/search_bar.dart';
 import 'widgets/section_header.dart';
@@ -66,6 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.volunteer_activism_rounded, size: 22),
+              tooltip: 'ساهم بالأجر',
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SupportScreen()),
+                );
+              },
+            ),
             Consumer<ThemeProvider>(
               builder: (context, themeProvider, _) {
                 return IconButton(

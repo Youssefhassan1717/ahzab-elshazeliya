@@ -214,15 +214,7 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Hero(
-                                    tag: 'hizb_title_${part.id}',
-                                    flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
-                                      return DefaultTextStyle(
-                                        style: DefaultTextStyle.of(toHeroContext).style,
-                                        child: toHeroContext.widget,
-                                      );
-                                    },
-                                    child: Text(
+                                  Text(
                                       part.title,
                                       style: TextStyle(
                                         fontFamily: 'Amiri',
@@ -235,7 +227,6 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 1,
-                                    ),
                                   ),
                                   if (part.subtitle != null) ...[
                                     const SizedBox(height: 2),
@@ -446,16 +437,10 @@ class _SwipeBackPageRoute<T> extends PageRoute<T> {
       reverseCurve: Curves.easeInCubic,
     );
 
-    // Wrap in a swipe-back gesture detector
-    final Widget page = SlideTransition(
-      position: Tween(
-        begin: const Offset(-1.0, 0.0),
-        end: Offset.zero,
-      ).animate(curvedAnimation),
-      child: FadeTransition(
-        opacity: Tween<double>(begin: 0.3, end: 1.0).animate(curvedAnimation),
-        child: child,
-      ),
+    // Pure fade — no slide or scale that could distort the Hero flight path
+    final Widget page = FadeTransition(
+      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curvedAnimation),
+      child: child,
     );
 
     // Only enable gesture when the route is on top
