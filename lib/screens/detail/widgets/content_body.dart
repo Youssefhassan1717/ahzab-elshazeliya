@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/arabic_normalizer.dart';
 import '../../../core/theme/app_colors.dart';
@@ -38,8 +38,19 @@ class ContentBody extends StatelessWidget {
     this.chunkKeys = const {},
   });
 
+  /// Check if this content has multiple sections (sub-ahzab)
+  bool get _hasMultipleSections {
+    final matches = _sectionPattern.allMatches(content);
+    return matches.length > 1;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Multi-section content: skip outer frame, each section has its own inner frame
+    if (_hasMultipleSections) {
+      return content.isNotEmpty ? _buildContent() : _buildEmptyState();
+    }
+
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final accentSoft = accent.withValues(alpha: isDark ? 0.18 : 0.12);
     final accentFaint = accent.withValues(alpha: isDark ? 0.08 : 0.05);
@@ -47,34 +58,28 @@ class ContentBody extends StatelessWidget {
     return Container(
       // Outer frame
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
-          width: 1.5,
+          color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
+          width: 1,
         ),
         boxShadow: [
-          // Deep shadow
+          // Soft depth shadow
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.08),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-          // Mid shadow
+          // Subtle inner glow
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-          // Accent glow
-          BoxShadow(
-            color: accent.withValues(alpha: isDark ? 0.06 : 0.03),
-            blurRadius: 24,
-            spreadRadius: 2,
+            color: accent.withValues(alpha: isDark ? 0.04 : 0.02),
+            blurRadius: 16,
+            spreadRadius: 1,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(19),
         child: Container(
           decoration: BoxDecoration(
             color: isDark
@@ -108,14 +113,14 @@ class ContentBody extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 left: 0,
-                child: _sideOrnament(accent, isDark),
+                child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
               ),
               // Right side ornamental border
               Positioned(
                 top: 0,
                 bottom: 0,
                 right: 0,
-                child: _sideOrnament(accent, isDark),
+                child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
               ),
 
               // Corner ornaments
@@ -125,13 +130,15 @@ class ContentBody extends StatelessWidget {
                   bottom: corner.isTop ? null : 0,
                   left: corner.isLeft ? 0 : null,
                   right: corner.isLeft ? null : 0,
-                  child: SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: CustomPaint(
-                      painter: _CornerPainter(
-                        color: accent.withValues(alpha: isDark ? 0.35 : 0.20),
-                        corner: corner,
+                  child: RepaintBoundary(
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: CustomPaint(
+                        painter: _CornerPainter(
+                          color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
+                          corner: corner,
+                        ),
                       ),
                     ),
                   ),
@@ -180,7 +187,7 @@ class ContentBody extends StatelessWidget {
   /// Decorative band at top/bottom of the frame
   Widget _ornamentalBand(Color accent, Color accentSoft, Color accentFaint) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: accentFaint,
         border: Border(
@@ -190,33 +197,25 @@ class ContentBody extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(child: _gradientLine(accent, true)),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: _eightPointStar(accent, 7),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             child: _eightPointStar(accent, 5),
           ),
           Text(
             ' ۞ ',
             style: TextStyle(
-              fontSize: 14,
-              color: accent.withValues(alpha: 0.45),
+              fontSize: 12,
+              color: accent.withValues(alpha: 0.35),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             child: _eightPointStar(accent, 5),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: _eightPointStar(accent, 7),
-          ),
           Expanded(child: _gradientLine(accent, false)),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
         ],
       ),
     );
@@ -225,17 +224,20 @@ class ContentBody extends StatelessWidget {
   /// Side border with repeating diamond dots
   Widget _sideOrnament(Color accent, bool isDark) {
     return SizedBox(
-      width: 10,
+      width: 6,
       child: CustomPaint(
         painter: _SideBorderPainter(
-          color: accent.withValues(alpha: isDark ? 0.12 : 0.07),
-          dotColor: accent.withValues(alpha: isDark ? 0.20 : 0.10),
+          color: accent.withValues(alpha: isDark ? 0.08 : 0.05),
+          dotColor: accent.withValues(alpha: isDark ? 0.14 : 0.08),
         ),
       ),
     );
   }
 
   static final _sectionPattern = RegExp(r'§SECTION§(.+?)§SECTION§');
+  static final _multiNewlinePattern = RegExp(r'\n{3,}');
+  static final _doubleNewlinePattern = RegExp(r'\n{2}');
+  static final _multiSpacePattern = RegExp(r' {2,}');
 
   Widget _buildContent() {
     int globalSearchOffset = 0;
@@ -258,21 +260,50 @@ class ContentBody extends StatelessWidget {
       return buildText(content);
     }
 
-    final parts = <Widget>[];
+    // Parse sections: collect (header, textAfter) pairs
+    final sectionEntries = <({String? header, String text})>[];
     int lastEnd = 0;
+    final matches = _sectionPattern.allMatches(content).toList();
 
-    for (final match in _sectionPattern.allMatches(content)) {
+    for (int i = 0; i < matches.length; i++) {
+      final match = matches[i];
       final before = content.substring(lastEnd, match.start).trim();
       if (before.isNotEmpty) {
-        parts.add(buildText(before));
+        sectionEntries.add((header: null, text: before));
       }
-      parts.add(_buildSectionHeader(match.group(1)!));
-      lastEnd = match.end;
+      // Text after this section header until next section or end
+      final textStart = match.end;
+      final textEnd = (i + 1 < matches.length) ? matches[i + 1].start : content.length;
+      final sectionText = content.substring(textStart, textEnd).trim();
+      sectionEntries.add((header: match.group(1)!, text: sectionText));
+      lastEnd = textEnd;
     }
 
-    final after = content.substring(lastEnd).trim();
-    if (after.isNotEmpty) {
-      parts.add(buildText(after));
+    // Check if there are multiple sections (sub-ahzab needing inner frames)
+    final sectionCount = sectionEntries.where((e) => e.header != null).length;
+    final needsInnerFrames = sectionCount > 1;
+
+    final parts = <Widget>[];
+
+    for (final entry in sectionEntries) {
+      if (entry.header != null && needsInnerFrames) {
+        // Build inner framed card for this sub-hizb
+        parts.add(_buildInnerSectionCard(
+          title: entry.header!,
+          body: entry.text.isNotEmpty ? buildText(entry.text) : null,
+        ));
+      } else if (entry.header != null) {
+        // Single section — render flat as before
+        parts.add(_buildSectionHeader(entry.header!));
+        if (entry.text.isNotEmpty) {
+          parts.add(buildText(entry.text));
+        }
+      } else {
+        // Text before any section header
+        if (entry.text.isNotEmpty) {
+          parts.add(buildText(entry.text));
+        }
+      }
     }
 
     return Column(
@@ -281,13 +312,151 @@ class ContentBody extends StatelessWidget {
     );
   }
 
+  /// Inner framed card for sub-ahzab (e.g. الرزق, الحراسة, العفو)
+  /// Matches the same ornamental style as the outer frame used for single ahzab
+  Widget _buildInnerSectionCard({required String title, Widget? body}) {
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final accentSoft = accent.withValues(alpha: isDark ? 0.18 : 0.12);
+    final accentFaint = accent.withValues(alpha: isDark ? 0.08 : 0.05);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: accent.withValues(alpha: isDark ? 0.04 : 0.02),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(19),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            ),
+            child: Stack(
+              children: [
+                // Subtle radial glow at top
+                Positioned(
+                  top: -60, left: 0, right: 0, height: 200,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.topCenter,
+                        radius: 1.2,
+                        colors: [
+                          accent.withValues(alpha: isDark ? 0.06 : 0.03),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Left side ornamental border
+                Positioned(top: 0, bottom: 0, left: 0,
+                  child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
+                ),
+                // Right side ornamental border
+                Positioned(top: 0, bottom: 0, right: 0,
+                  child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
+                ),
+                // Corner ornaments
+                for (final corner in _Corner.values)
+                  Positioned(
+                    top: corner.isTop ? 0 : null,
+                    bottom: corner.isTop ? null : 0,
+                    left: corner.isLeft ? 0 : null,
+                    right: corner.isLeft ? null : 0,
+                    child: RepaintBoundary(
+                      child: SizedBox(
+                        width: 36, height: 36,
+                        child: CustomPaint(
+                          painter: _CornerPainter(
+                            color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
+                            corner: corner,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Main content column
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Top ornamental band with section title
+                    _ornamentalBand(accent, accentSoft, accentFaint),
+
+                    // Section title
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '﴾  $title  ﴿',
+                            style: TextStyle(
+                              fontFamily: 'Amiri',
+                              fontSize: fontSize * 0.95,
+                              fontWeight: FontWeight.w700,
+                              color: accent,
+                              height: 1.6,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Inner frame with content
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        border: Border.symmetric(
+                          vertical: BorderSide(color: accentFaint, width: 1),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: fontSize > 24 ? 4.0 : 10.0,
+                          vertical: 20,
+                        ),
+                        child: body ?? const SizedBox.shrink(),
+                      ),
+                    ),
+
+                    // Bottom ornamental band
+                    _ornamentalBand(accent, accentSoft, accentFaint),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
     // Collapse multiple blank lines into one newline, collapse multiple spaces,
     // but preserve single newlines so the text shows proper line breaks.
     final text = rawText
-        .replaceAll(RegExp(r'\n{3,}'), '\n')
-        .replaceAll(RegExp(r'\n{2}'), '\n')
-        .replaceAll(RegExp(r' {2,}'), ' ')
+        .replaceAll(_multiNewlinePattern, '\n')
+        .replaceAll(_doubleNewlinePattern, '\n')
+        .replaceAll(_multiSpacePattern, ' ')
         .trim();
 
     final baseStyle = TextStyle(

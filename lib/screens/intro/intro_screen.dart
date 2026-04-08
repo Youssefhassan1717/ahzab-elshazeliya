@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
@@ -13,40 +13,36 @@ class IntroScreen extends StatefulWidget {
 
 class _IntroScreenState extends State<IntroScreen>
     with TickerProviderStateMixin {
-  // Phase 1: Background fade-in + geometric pattern bloom
-  late final AnimationController _bgController;
-  // Phase 2: Content entrance — staggered
-  late final AnimationController _contentController;
-  // Phase 3: Hold shimmer / breathing glow
-  late final AnimationController _breatheController;
-  // Phase 4: Exit — everything dissolves upward
-  late final AnimationController _exitController;
-  // Perpetual: slow geometric rotation
-  late final AnimationController _rotationController;
+  // Only 4 controllers instead of 7
+  late final AnimationController _bgController;       // background fade-in (finite)
+  late final AnimationController _contentController;   // staggered text entrance (finite)
+  late final AnimationController _loopController;      // slow loop: rotation + particles + breathe
+  late final AnimationController _exitController;      // exit fade (finite)
 
   // Background
   late final Animation<double> _bgFade;
   late final Animation<double> _geometryBloom;
-  late final Animation<double> _geometryRotation;
 
   // Content entrance
   late final Animation<double> _bismillahFade;
-  late final Animation<double> _bismillahScale;
+  late final Animation<double> _bismillahSlide;
   late final Animation<double> _topLineFade;
   late final Animation<double> _topLineWidth;
   late final Animation<double> _titleFade;
-  late final Animation<double> _titleScale;
+  late final Animation<double> _titleSlide;
   late final Animation<double> _subtitleFade;
+  late final Animation<double> _subtitleSlide;
   late final Animation<double> _bottomLineFade;
   late final Animation<double> _bottomLineWidth;
   late final Animation<double> _duaFade;
-
-  // Breathing
-  late final Animation<double> _breathe;
+  late final Animation<double> _duaSlide;
 
   // Exit
   late final Animation<double> _exitFade;
   late final Animation<Offset> _exitSlide;
+
+  // Precomputed particles (12 instead of 35)
+  late final List<_FloatingParticle> _particles;
 
   bool _navigating = false;
 
@@ -59,127 +55,94 @@ class _IntroScreenState extends State<IntroScreen>
       statusBarIconBrightness: Brightness.light,
     ));
 
-    // ── Controllers ──
     _bgController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1800),
       vsync: this,
     );
 
     _contentController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2800),
       vsync: this,
     );
 
-    _breatheController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
+    // Single slow loop drives rotation, particles, and breathing
+    _loopController = AnimationController(
+      duration: const Duration(seconds: 20),
       vsync: this,
     );
 
     _exitController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
-    _rotationController = AnimationController(
-      duration: const Duration(seconds: 90),
-      vsync: this,
-    )..repeat();
-
-    // ── Background animations ──
-    _bgFade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _bgController, curve: Curves.easeOut),
-    );
+    // ── Background ──
+    _bgFade = CurvedAnimation(parent: _bgController, curve: Curves.easeOut);
     _geometryBloom = Tween<double>(begin: 0.3, end: 1.0).animate(
       CurvedAnimation(parent: _bgController, curve: Curves.easeOutCubic),
     );
-    _geometryRotation = Tween<double>(begin: 0, end: 2 * math.pi).animate(
-      CurvedAnimation(parent: _rotationController, curve: Curves.linear),
-    );
 
-    // ── Content entrance (staggered over 3s) ──
-    _bismillahFade = _interval(0.0, 0.22, Curves.easeOut);
-    _bismillahScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _contentController,
-        curve: const Interval(0.0, 0.25, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _topLineFade = _interval(0.12, 0.30, Curves.easeOut);
+    // ── Content entrance ──
+    _bismillahFade = _fadeInterval(0.0, 0.18);
+    _bismillahSlide = _slideInterval(0.0, 0.22);
+    _topLineFade = _fadeInterval(0.10, 0.28);
     _topLineWidth = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _contentController,
-        curve: const Interval(0.12, 0.38, curve: Curves.easeOutCubic),
-      ),
+      CurvedAnimation(parent: _contentController, curve: const Interval(0.10, 0.35, curve: Curves.easeOut)),
     );
-
-    _titleFade = _interval(0.28, 0.48, Curves.easeOut);
-    _titleScale = Tween<double>(begin: 0.88, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _contentController,
-        curve: const Interval(0.28, 0.52, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _subtitleFade = _interval(0.48, 0.65, Curves.easeOut);
-
-    _bottomLineFade = _interval(0.55, 0.72, Curves.easeOut);
+    _titleFade = _fadeInterval(0.22, 0.42);
+    _titleSlide = _slideInterval(0.20, 0.45);
+    _subtitleFade = _fadeInterval(0.40, 0.58);
+    _subtitleSlide = _slideInterval(0.38, 0.60);
+    _bottomLineFade = _fadeInterval(0.52, 0.68);
     _bottomLineWidth = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _contentController,
-        curve: const Interval(0.55, 0.78, curve: Curves.easeOutCubic),
-      ),
+      CurvedAnimation(parent: _contentController, curve: const Interval(0.52, 0.72, curve: Curves.easeOut)),
     );
-
-    _duaFade = _interval(0.70, 0.88, Curves.easeOut);
-
-    // ── Breathing glow ──
-    _breathe = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _breatheController, curve: Curves.easeInOut),
-    );
+    _duaFade = _fadeInterval(0.65, 0.82);
+    _duaSlide = _slideInterval(0.63, 0.85);
 
     // ── Exit ──
     _exitFade = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _exitController, curve: Curves.easeIn),
     );
-    _exitSlide = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(0, -0.02),
-    ).animate(
+    _exitSlide = Tween<Offset>(begin: Offset.zero, end: const Offset(0, -0.03)).animate(
       CurvedAnimation(parent: _exitController, curve: Curves.easeIn),
     );
 
-    // ── Orchestration ──
+    // ── Particles — 12, precomputed ──
+    final rng = math.Random(42);
+    _particles = List.generate(12, (_) => _FloatingParticle(rng));
+
     _startSequence();
   }
 
-  Animation<double> _interval(double begin, double end, Curve curve) {
+  Animation<double> _fadeInterval(double begin, double end) {
     return Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _contentController,
-        curve: Interval(begin, end, curve: curve),
-      ),
+      CurvedAnimation(parent: _contentController, curve: Interval(begin, end, curve: Curves.easeOut)),
+    );
+  }
+
+  Animation<double> _slideInterval(double begin, double end) {
+    return Tween<double>(begin: 28, end: 0).animate(
+      CurvedAnimation(parent: _contentController, curve: Interval(begin, end, curve: Curves.easeOutCubic)),
     );
   }
 
   Future<void> _startSequence() async {
-    // Phase 1: Background fades in
-    await Future.delayed(const Duration(milliseconds: 150));
+    await Future.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     _bgController.forward();
 
-    // Phase 2: Content enters (overlaps with bg)
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
     _contentController.forward();
 
-    // Phase 3: Breathing glow after content settles
+    // Start slow loop after content appears
     await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
-    _breatheController.repeat(reverse: true);
+    _loopController.repeat();
 
-    // Phase 4: Auto-transition
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // Auto-transition
+    await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
     _navigateToHome();
   }
@@ -188,29 +151,24 @@ class _IntroScreenState extends State<IntroScreen>
   void dispose() {
     _bgController.dispose();
     _contentController.dispose();
-    _breatheController.dispose();
+    _loopController.dispose();
     _exitController.dispose();
-    _rotationController.dispose();
     super.dispose();
   }
 
   void _navigateToHome() {
     if (_navigating) return;
     _navigating = true;
-
-    _breatheController.stop();
+    _loopController.stop();
     _exitController.forward().then((_) {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 400),
+          transitionDuration: const Duration(milliseconds: 500),
           pageBuilder: (_, __, ___) => const HomeScreen(),
           transitionsBuilder: (_, animation, __, child) {
             return FadeTransition(
-              opacity: CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOut,
-              ),
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
               child: child,
             );
           },
@@ -221,18 +179,19 @@ class _IntroScreenState extends State<IntroScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    ));
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFF050E08),
+        backgroundColor: isDark ? const Color(0xFF040C07) : Colors.white,
         body: AnimatedBuilder(
-          animation: Listenable.merge([
-            _bgController,
-            _contentController,
-            _breatheController,
-            _exitController,
-            _rotationController,
-          ]),
+          animation: Listenable.merge([_bgController, _contentController, _loopController, _exitController]),
           builder: (context, _) {
             return SlideTransition(
               position: _exitSlide,
@@ -249,219 +208,191 @@ class _IntroScreenState extends State<IntroScreen>
 
   Widget _buildBody(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final breatheValue = _breatheController.isAnimating ? _breathe.value : 0.0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final loopVal = _loopController.value;
+    // Breathing: derive from loop using sine (no extra controller)
+    final breathe = (math.sin(loopVal * 2 * math.pi) * 0.5 + 0.5);
 
-    return SizedBox(
-      width: size.width,
-      height: size.height,
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final subtitleColor = isDark
+        ? AppColors.gold.withValues(alpha: 0.6)
+        : AppColors.lightTextSecondary;
+    final faintText = isDark
+        ? AppColors.darkTextSecondary.withValues(alpha: 0.5)
+        : AppColors.lightTextSecondary.withValues(alpha: 0.7);
+    final titleColor = isDark ? AppColors.darkTextPrimary : AppColors.emeraldGreen;
+
+    return SizedBox.expand(
       child: Stack(
         children: [
-          // Deep gradient background
+          // ── Layer 1: Gradient background (static after fade-in) ──
           Positioned.fill(
             child: Opacity(
               opacity: _bgFade.value,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+              child: const _StaticGradientBg(),
+            ),
+          ),
+
+          // ── Layer 2: Tiled arabesque (static, painted once) ──
+          if (_bgFade.value > 0.01)
+            Positioned.fill(
+              child: Opacity(
+                opacity: _bgFade.value * (isDark ? 0.45 : 0.4),
+                child: ShaderMask(
+                  shaderCallback: (bounds) => RadialGradient(
+                    center: Alignment.center,
+                    radius: 0.8,
                     colors: [
-                      Color(0xFF0F2E1A),
-                      Color(0xFF0A1A0F),
-                      Color(0xFF060F09),
-                      Color(0xFF050E08),
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.45),
+                      Colors.white.withValues(alpha: 0.75),
                     ],
-                    stops: [0.0, 0.35, 0.7, 1.0],
+                    stops: const [0.0, 0.2, 0.5, 1.0],
+                  ).createShader(bounds),
+                  blendMode: BlendMode.dstIn,
+                  child: CustomPaint(
+                    painter: _TiledArabesquePainter(
+                      color: isDark
+                          ? AppColors.emeraldGreen.withValues(alpha: 0.22)
+                          : AppColors.emeraldGreen.withValues(alpha: 0.16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Layer 3: Two rotating geometric rings (was 5) ──
+          if (_bgFade.value > 0.01)
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: Opacity(
+                  opacity: _bgFade.value * 0.85,
+                  child: Transform.scale(
+                    scale: _geometryBloom.value,
+                    child: CustomPaint(
+                      painter: _IslamicGeometryPainter(
+                        rotation: loopVal * 2 * math.pi,
+                        color: isDark
+                            ? AppColors.emeraldGreen.withValues(alpha: 0.14)
+                            : AppColors.emeraldGreen.withValues(alpha: 0.11),
+                        goldColor: isDark
+                            ? AppColors.gold.withValues(alpha: 0.09)
+                            : AppColors.emeraldGreen.withValues(alpha: 0.08),
+                        center: Offset(size.width / 2, size.height * 0.42),
+                        screenWidth: size.width,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Layer 4: Particles (12, no blur) ──
+          if (_bgFade.value > 0.01)
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: Opacity(
+                  opacity: _bgFade.value * (isDark ? 0.6 : 0.45),
+                  child: CustomPaint(
+                    painter: _ParticlePainter(
+                      particles: _particles,
+                      progress: loopVal,
+                      color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Layer 5: Corner arabesques (static, painted once) ──
+          ..._buildCornerArabesques(isDark),
+
+          // ── Layer 6: Breathing glow (simple, no extra controller) ──
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -0.08),
+                    radius: 0.48 + (breathe * 0.08),
+                    colors: isDark
+                        ? [
+                            AppColors.gold.withValues(alpha: 0.05 + breathe * 0.03),
+                            Colors.transparent,
+                          ]
+                        : [
+                            AppColors.emeraldGreen.withValues(alpha: 0.04 + breathe * 0.02),
+                            Colors.transparent,
+                          ],
                   ),
                 ),
               ),
             ),
           ),
 
-          // Geometric pattern
-          Positioned.fill(
-            child: Opacity(
-              opacity: _bgFade.value * 0.6,
-              child: Transform.scale(
-                scale: _geometryBloom.value,
-                child: CustomPaint(
-                  painter: _IslamicGeometryPainter(
-                    rotation: _geometryRotation.value,
-                    color: AppColors.emeraldGreen.withValues(alpha: 0.035),
-                    goldColor: AppColors.gold.withValues(alpha: 0.018),
-                    center: Offset(size.width / 2, size.height * 0.42),
-                    screenWidth: size.width,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Center radial glow — breathes
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.05),
-                  radius: 0.5 + (breatheValue * 0.08),
-                  colors: [
-                    AppColors.emeraldGreen
-                        .withValues(alpha: 0.07 + breatheValue * 0.03),
-                    AppColors.gold.withValues(alpha: 0.02 + breatheValue * 0.01),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.4, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Content — perfectly centered
+          // ── Layer 7: Content ──
           Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 36),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // بسم الله الرحمن الرحيم
-                  Opacity(
-                    opacity: _bismillahFade.value,
-                    child: Transform.scale(
-                      scale: _bismillahScale.value,
-                      child: Text(
-                        'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
-                        style: TextStyle(
-                          fontFamily: 'Amiri',
-                          fontSize: 20,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.gold.withValues(alpha: 0.8),
-                          height: 1.8,
-                        ),
-                        textAlign: TextAlign.center,
+                  _animText(_bismillahFade.value, _bismillahSlide.value,
+                    Text('بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
+                      style: TextStyle(fontFamily: 'Amiri', fontSize: 20, fontWeight: FontWeight.w400,
+                        color: accent.withValues(alpha: 0.85), height: 1.8),
+                      textAlign: TextAlign.center)),
+                  const SizedBox(height: 22),
+                  _buildOrnamentLine(_topLineFade.value, _topLineWidth.value, accent),
+                  const SizedBox(height: 28),
+                  _animText(_titleFade.value, _titleSlide.value,
+                    Column(children: [
+                      // Title uses simple gradient instead of ShaderMask shimmer
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                          colors: isDark
+                              ? [AppColors.darkTextPrimary, AppColors.gold.withValues(alpha: 0.85)]
+                              : [AppColors.emeraldGreen, AppColors.deepGreen],
+                        ).createShader(bounds),
+                        child: const Text('أحزاب',
+                          style: TextStyle(fontFamily: 'ReemKufi', fontSize: 62, fontWeight: FontWeight.w700,
+                            color: Colors.white, height: 1.5, letterSpacing: 5),
+                          textAlign: TextAlign.center),
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Top ornamental line
-                  _buildOrnamentLine(_topLineFade.value, _topLineWidth.value),
-
-                  const SizedBox(height: 36),
-
-                  // Main title — elegant with gold accent
-                  Opacity(
-                    opacity: _titleFade.value,
-                    child: Transform.scale(
-                      scale: _titleScale.value,
-                      child: Column(
-                        children: [
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                AppColors.darkTextPrimary,
-                                AppColors.gold.withValues(alpha: 0.85),
-                              ],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'أحزاب',
-                              style: TextStyle(
-                                fontFamily: 'ReemKufi',
-                                fontSize: 64,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                height: 1.2,
-                                letterSpacing: 6,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                AppColors.gold.withValues(alpha: 0.9),
-                                AppColors.darkTextPrimary,
-                              ],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'الإمام الشاذلي',
-                              style: TextStyle(
-                                fontFamily: 'ReemKufi',
-                                fontSize: 44,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                height: 1.3,
-                                letterSpacing: 3,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 6),
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                          colors: isDark
+                              ? [AppColors.gold.withValues(alpha: 0.9), AppColors.darkTextPrimary]
+                              : [AppColors.deepGreen, AppColors.primaryGreen],
+                        ).createShader(bounds),
+                        child: const Text('الإمام الشاذلي',
+                          style: TextStyle(fontFamily: 'ReemKufi', fontSize: 42, fontWeight: FontWeight.w700,
+                            color: Colors.white, height: 1.5, letterSpacing: 3),
+                          textAlign: TextAlign.center),
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Description + رضي الله عنه
-                  Opacity(
-                    opacity: _subtitleFade.value,
-                    child: Column(
-                      children: [
-                        Text(
-                          'إِمَامُ الْعَارِفِينَ وَقُطْبُ الْأَقْطَابِ وَكَهْفُ أَمْنِ الطُّلَّابِ',
-                          style: TextStyle(
-                            fontFamily: 'ScheherazadeNew',
-                            fontSize: 16,
-                            color: AppColors.gold.withValues(alpha: 0.6),
-                            height: 1.7,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'رضي الله عنه',
-                          style: TextStyle(
-                            fontFamily: 'ScheherazadeNew',
-                            fontSize: 17,
-                            color: AppColors.darkTextSecondary.withValues(alpha: 0.45),
-                            height: 1.6,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 36),
-
-                  // Bottom ornamental line
-                  _buildOrnamentLine(
-                    _bottomLineFade.value,
-                    _bottomLineWidth.value,
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Dua
-                  Opacity(
-                    opacity: _duaFade.value,
-                    child: Text(
-                      'اللَّهُمَّ انْفَعْنَا بِهِ',
-                      style: TextStyle(
-                        fontFamily: 'ScheherazadeNew',
-                        fontSize: 17,
-                        color: AppColors.darkTextSecondary.withValues(alpha: 0.5),
-                        height: 1.6,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                    ])),
+                  const SizedBox(height: 18),
+                  _animText(_subtitleFade.value, _subtitleSlide.value,
+                    Column(children: [
+                      Text('إِمَامُ الْعَارِفِينَ وَقُطْبُ الْأَقْطَابِ وَكَهْفُ أَمْنِ الطُّلَّابِ',
+                        style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 16, color: subtitleColor, height: 1.7),
+                        textAlign: TextAlign.center),
+                      const SizedBox(height: 6),
+                      Text('رضي الله عنه',
+                        style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 17, color: faintText, height: 1.6),
+                        textAlign: TextAlign.center),
+                    ])),
+                  const SizedBox(height: 26),
+                  _buildOrnamentLine(_bottomLineFade.value, _bottomLineWidth.value, accent),
+                  const SizedBox(height: 22),
+                  _animText(_duaFade.value, _duaSlide.value,
+                    Text('اللَّهُمَّ انْفَعْنَا بِهِ',
+                      style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 17, color: faintText, height: 1.6),
+                      textAlign: TextAlign.center)),
                 ],
               ),
             ),
@@ -471,122 +402,230 @@ class _IntroScreenState extends State<IntroScreen>
     );
   }
 
-  Widget _buildOrnamentLine(double fade, double widthFraction) {
+  Widget _animText(double opacity, double slideY, Widget child) {
+    return Opacity(opacity: opacity, child: Transform.translate(offset: Offset(0, slideY), child: child));
+  }
+
+  List<Widget> _buildCornerArabesques(bool isDark) {
+    final c1 = isDark ? AppColors.gold.withValues(alpha: 0.35) : AppColors.emeraldGreen.withValues(alpha: 0.22);
+    final c2 = isDark ? AppColors.emeraldGreen.withValues(alpha: 0.28) : AppColors.emeraldGreen.withValues(alpha: 0.16);
+    final op1 = _bgFade.value * (isDark ? 0.4 : 0.3);
+    final op2 = _bgFade.value * (isDark ? 0.25 : 0.2);
+    return [
+      Positioned(top: -15, right: -15, child: Opacity(opacity: op1,
+        child: CustomPaint(size: const Size(220, 220), painter: _CornerArabesquePainter(color: c1)))),
+      Positioned(bottom: -15, left: -15, child: Opacity(opacity: op1,
+        child: Transform.rotate(angle: math.pi, child: CustomPaint(size: const Size(220, 220), painter: _CornerArabesquePainter(color: c1))))),
+      Positioned(top: -15, left: -15, child: Opacity(opacity: op2,
+        child: Transform.rotate(angle: math.pi / 2, child: CustomPaint(size: const Size(160, 160), painter: _CornerArabesquePainter(color: c2))))),
+      Positioned(bottom: -15, right: -15, child: Opacity(opacity: op2,
+        child: Transform.rotate(angle: -math.pi / 2, child: CustomPaint(size: const Size(160, 160), painter: _CornerArabesquePainter(color: c2))))),
+    ];
+  }
+
+  Widget _buildOrnamentLine(double fade, double widthFraction, Color accent) {
     return Opacity(
       opacity: fade,
       child: SizedBox(
-        width: 220 * widthFraction,
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 0.5,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      AppColors.gold.withValues(alpha: 0.45),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                '۞',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.gold.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Container(
-                height: 0.5,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.gold.withValues(alpha: 0.45),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+        width: 240 * widthFraction,
+        child: Row(children: [
+          Expanded(child: Container(height: 0.5, decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [Colors.transparent, accent.withValues(alpha: 0.5)])))),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text('۞', style: TextStyle(fontSize: 14, color: accent.withValues(alpha: 0.55)))),
+          Expanded(child: Container(height: 0.5, decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [accent.withValues(alpha: 0.5), Colors.transparent])))),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Static gradient background (never repaints) ──
+class _StaticGradientBg extends StatelessWidget {
+  const _StaticGradientBg();
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(0, -0.2), radius: 1.2,
+          colors: isDark
+              ? const [Color(0xFF163D24), Color(0xFF0D2415), Color(0xFF081A0E), Color(0xFF040C07)]
+              : const [Color(0xFFE8F5EC), Color(0xFFF0F7F2), Color(0xFFF8FCF9), Colors.white],
+          stops: const [0.0, 0.35, 0.65, 1.0],
         ),
       ),
     );
   }
 }
 
-/// Subtle Islamic geometric star patterns
-class _IslamicGeometryPainter extends CustomPainter {
-  final double rotation;
-  final Color color;
-  final Color goldColor;
-  final Offset center;
-  final double screenWidth;
+// ── Particles (12, NO blur — blur is extremely expensive) ──
+class _FloatingParticle {
+  final double x, startY, speed, size, opacity, phase;
+  _FloatingParticle(math.Random rng)
+      : x = rng.nextDouble(),
+        startY = rng.nextDouble(),
+        speed = 0.2 + rng.nextDouble() * 0.3,
+        size = 2.0 + rng.nextDouble() * 2.5,
+        opacity = 0.2 + rng.nextDouble() * 0.35,
+        phase = rng.nextDouble() * 2 * math.pi;
+}
 
-  _IslamicGeometryPainter({
-    required this.rotation,
-    required this.color,
-    required this.goldColor,
-    required this.center,
-    required this.screenWidth,
-  });
+class _ParticlePainter extends CustomPainter {
+  final List<_FloatingParticle> particles;
+  final double progress;
+  final Color color;
+  _ParticlePainter({required this.particles, required this.progress, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Outer 8-pointed star ring
-    _drawStarRing(canvas, center, screenWidth * 0.75, 8, rotation, color, 0.6);
-    // Mid 12-pointed ring — counter-rotates
-    _drawStarRing(
-        canvas, center, screenWidth * 0.45, 12, -rotation * 0.6, goldColor, 0.5);
-    // Inner 6-pointed — faster
-    _drawStarRing(
-        canvas, center, screenWidth * 0.22, 6, rotation * 1.4, color, 0.7);
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final p in particles) {
+      final y = (p.startY - progress * p.speed) % 1.0;
+      final x = p.x + math.sin(progress * 2 * math.pi + p.phase) * 0.015;
+      final edgeFade = y < 0.1 ? y / 0.1 : (y > 0.9 ? (1.0 - y) / 0.1 : 1.0);
+      paint.color = color.withValues(alpha: p.opacity * edgeFade);
+      canvas.drawCircle(Offset(x * size.width, y * size.height), p.size, paint);
+    }
   }
 
-  void _drawStarRing(Canvas canvas, Offset c, double r, int points,
-      double angle, Color col, double strokeWidth) {
-    final paint = Paint()
-      ..color = col
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
+  @override
+  bool shouldRepaint(_ParticlePainter old) => progress != old.progress;
+}
 
-    // Polygon
+// ── Geometry — 2 rings instead of 5 ──
+class _IslamicGeometryPainter extends CustomPainter {
+  final double rotation;
+  final Color color, goldColor;
+  final Offset center;
+  final double screenWidth;
+  _IslamicGeometryPainter({required this.rotation, required this.color, required this.goldColor, required this.center, required this.screenWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _drawRing(canvas, center, screenWidth * 0.72, 8, rotation, color, 0.7);
+    _drawRing(canvas, center, screenWidth * 0.42, 12, -rotation * 0.6, goldColor, 0.5);
+  }
+
+  void _drawRing(Canvas canvas, Offset c, double r, int pts, double angle, Color col, double sw) {
+    final paint = Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = sw;
     final path = Path();
-    for (int i = 0; i <= points; i++) {
-      final theta = angle + (2 * math.pi * i / points);
-      final x = c.dx + r * math.cos(theta);
-      final y = c.dy + r * math.sin(theta);
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    for (int i = 0; i <= pts; i++) {
+      final t = angle + (2 * math.pi * i / pts);
+      final p = Offset(c.dx + r * math.cos(t), c.dy + r * math.sin(t));
+      i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
     }
     path.close();
     canvas.drawPath(path, paint);
 
-    // Star: connect every-other vertex
-    if (points >= 6) {
-      final step = points ~/ 3;
-      final starPaint = Paint()
-        ..color = col.withValues(alpha: col.a * 0.6)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth * 0.6;
-      for (int i = 0; i < points; i++) {
-        final t1 = angle + (2 * math.pi * i / points);
-        final t2 = angle + (2 * math.pi * ((i + step) % points) / points);
+    if (pts >= 6) {
+      final step = pts ~/ 3;
+      paint..color = col.withValues(alpha: col.a * 0.45)..strokeWidth = sw * 0.5;
+      for (int i = 0; i < pts; i++) {
+        final t1 = angle + (2 * math.pi * i / pts);
+        final t2 = angle + (2 * math.pi * ((i + step) % pts) / pts);
         canvas.drawLine(
           Offset(c.dx + r * math.cos(t1), c.dy + r * math.sin(t1)),
-          Offset(c.dx + r * math.cos(t2), c.dy + r * math.sin(t2)),
-          starPaint,
-        );
+          Offset(c.dx + r * math.cos(t2), c.dy + r * math.sin(t2)), paint);
       }
     }
   }
 
   @override
   bool shouldRepaint(_IslamicGeometryPainter old) => rotation != old.rotation;
+}
+
+// ── Tiled arabesque (static — painted once) ──
+class _TiledArabesquePainter extends CustomPainter {
+  final Color color;
+  _TiledArabesquePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    const ts = 44.0;
+    final cols = (size.width / ts).ceil() + 1;
+    final rows = (size.height / ts).ceil() + 1;
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        final cx = col * ts + (row.isOdd ? ts / 2 : 0);
+        final cy = row * ts;
+        _star8(canvas, cx, cy, ts * 0.36, paint);
+      }
+    }
+  }
+
+  void _star8(Canvas canvas, double cx, double cy, double r, Paint paint) {
+    final path = Path();
+    for (int i = 0; i < 8; i++) {
+      final oa = (i * math.pi / 4) - math.pi / 8;
+      final ia = oa + math.pi / 8;
+      if (i == 0) path.moveTo(cx + r * math.cos(oa), cy + r * math.sin(oa));
+      else path.lineTo(cx + r * math.cos(oa), cy + r * math.sin(oa));
+      path.lineTo(cx + (r * 0.42) * math.cos(ia), cy + (r * 0.42) * math.sin(ia));
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+    canvas.drawCircle(Offset(cx, cy), r * 0.18, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Corner arabesque (static) ──
+class _CornerArabesquePainter extends CustomPainter {
+  final Color color;
+  _CornerArabesquePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width;
+    const cy = 0.0;
+    final maxR = size.width * 0.95;
+    final paint = Paint()..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+
+    for (int i = 0; i < 6; i++) {
+      final r = maxR * (0.28 + i * 0.12);
+      paint..color = color.withValues(alpha: color.a * (1.0 - i * 0.12).clamp(0.3, 1.0))
+           ..strokeWidth = (2.2 - i * 0.3).clamp(0.5, 2.2);
+      canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: r), math.pi * 0.5, math.pi * 0.5, false, paint);
+    }
+
+    for (int i = 0; i < 8; i++) {
+      final a = math.pi * 0.5 + (math.pi * 0.5 * i / 7);
+      paint..color = color.withValues(alpha: color.a * 0.3)..strokeWidth = 0.5;
+      canvas.drawLine(
+        Offset(cx + maxR * 0.22 * math.cos(a), cy + maxR * 0.22 * math.sin(a)),
+        Offset(cx + maxR * 0.82 * math.cos(a), cy + maxR * 0.82 * math.sin(a)), paint);
+    }
+
+    // Small star
+    final sr = maxR * 0.1;
+    final sc = Offset(cx - maxR * 0.14, cy + maxR * 0.14);
+    final sp = Path();
+    for (int i = 0; i < 8; i++) {
+      final oa = (i * math.pi / 4) - math.pi / 8;
+      final ia = oa + math.pi / 8;
+      if (i == 0) sp.moveTo(sc.dx + sr * math.cos(oa), sc.dy + sr * math.sin(oa));
+      else sp.lineTo(sc.dx + sr * math.cos(oa), sc.dy + sr * math.sin(oa));
+      sp.lineTo(sc.dx + (sr * 0.45) * math.cos(ia), sc.dy + (sr * 0.45) * math.sin(ia));
+    }
+    sp.close();
+    paint..color = color.withValues(alpha: color.a * 0.6)..strokeWidth = 0.8..style = PaintingStyle.stroke;
+    canvas.drawPath(sp, paint);
+
+    // Dots
+    paint.style = PaintingStyle.fill;
+    for (int i = 0; i < 10; i++) {
+      final a = math.pi * 0.5 + (math.pi * 0.5 * i / 9);
+      paint.color = color.withValues(alpha: color.a * 0.4);
+      canvas.drawCircle(Offset(cx + maxR * 0.5 * math.cos(a), cy + maxR * 0.5 * math.sin(a)), 1.5, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

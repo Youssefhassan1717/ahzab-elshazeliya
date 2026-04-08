@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
@@ -37,60 +37,60 @@ class DetailHeader extends StatelessWidget {
           end: Alignment.bottomCenter,
           stops: const [0.0, 0.5, 1.0],
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
-          width: 1.5,
+          color: accentColor.withValues(alpha: isDark ? 0.20 : 0.10),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isDark
-                ? Colors.black.withValues(alpha: 0.4)
-                : AppColors.emeraldGreen.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+                ? Colors.black.withValues(alpha: 0.3)
+                : AppColors.emeraldGreen.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
             // Islamic geometric pattern overlay
             Positioned.fill(
               child: CustomPaint(
                 painter: _IslamicPatternPainter(
-                  color: accentColor.withValues(alpha: isDark ? 0.04 : 0.025),
+                  color: accentColor.withValues(alpha: isDark ? 0.03 : 0.02),
                 ),
               ),
             ),
 
-            // Corner arch ornaments
+            // Corner arch ornaments — smaller
             ..._buildCornerArches(accentColor, isDark),
 
             // Main content
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
               child: Column(
                 children: [
                   // Top arabesque band
                   _arabesqueBand(accentColor, isDark),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
                   // بسم الله
                   Text(
                     'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
                     style: TextStyle(
                       fontFamily: 'ScheherazadeNew',
-                      color: accentColor.withValues(alpha: 0.65),
-                      fontSize: 14,
+                      color: accentColor.withValues(alpha: 0.55),
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      height: 1.6,
-                      letterSpacing: 1.2,
+                      height: 1.5,
+                      letterSpacing: 0.8,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
 
                   // Title
                   Text(
@@ -98,16 +98,16 @@ class DetailHeader extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Amiri',
                       color: accentColor,
-                      fontSize: math.max(28, fontSize * 1.4),
+                      fontSize: 38,
                       fontWeight: FontWeight.w700,
-                      height: 1.3,
+                      height: 1.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
 
                   // Subtitle
                   if (subtitle != null) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle!,
                       style: TextStyle(
@@ -115,15 +115,15 @@ class DetailHeader extends StatelessWidget {
                         color: isDark
                             ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
-                        fontSize: math.max(16, fontSize * 0.8),
-                        height: 1.6,
+                        fontSize: 13,
+                        height: 1.5,
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ],
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
 
                   // Bottom arabesque band
                   _arabesqueBand(accentColor, isDark),
@@ -148,8 +148,8 @@ class DetailHeader extends StatelessWidget {
 
   Widget _archCorner(Color color, int corner) {
     return SizedBox(
-      width: 60,
-      height: 60,
+      width: 40,
+      height: 40,
       child: CustomPaint(
         painter: _ArchCornerPainter(color: color, corner: corner),
       ),

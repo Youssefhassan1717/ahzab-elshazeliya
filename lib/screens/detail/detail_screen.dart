@@ -112,12 +112,17 @@ class _DetailScreenState extends State<DetailScreen>
   }
 
   /// Cleans content the same way _buildBodyText does for consistent position mapping.
+  static final _sectionCleanPattern = RegExp(r'§SECTION§.+?§SECTION§');
+  static final _multiNewlinePattern = RegExp(r'\n{3,}');
+  static final _doubleNewlinePattern = RegExp(r'\n{2}');
+  static final _multiSpacePattern = RegExp(r' {2,}');
+
   String _cleanContent(String raw) {
     return raw
-        .replaceAll(RegExp(r'§SECTION§.+?§SECTION§'), ' ')
-        .replaceAll(RegExp(r'\n{3,}'), '\n')
-        .replaceAll(RegExp(r'\n{2}'), '\n')
-        .replaceAll(RegExp(r' {2,}'), ' ')
+        .replaceAll(_sectionCleanPattern, ' ')
+        .replaceAll(_multiNewlinePattern, '\n')
+        .replaceAll(_doubleNewlinePattern, '\n')
+        .replaceAll(_multiSpacePattern, ' ')
         .trim();
   }
 
@@ -141,9 +146,9 @@ class _DetailScreenState extends State<DetailScreen>
   /// Cleans a chunk the same way _buildBodyText does.
   static String _cleanChunk(String raw) {
     return raw
-        .replaceAll(RegExp(r'\n{3,}'), '\n')
-        .replaceAll(RegExp(r'\n{2}'), '\n')
-        .replaceAll(RegExp(r' {2,}'), ' ')
+        .replaceAll(_multiNewlinePattern, '\n')
+        .replaceAll(_doubleNewlinePattern, '\n')
+        .replaceAll(_multiSpacePattern, ' ')
         .trim();
   }
 

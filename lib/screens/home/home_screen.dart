@@ -26,6 +26,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _debounce;
   bool _initialAnimationDone = false;
 
+  // Cache normalized text per hizb to avoid re-computing on every rebuild
+  static final Map<String, String> _normalizedTitleCache = {};
+  static final Map<String, String> _normalizedSubtitleCache = {};
+  static final Map<String, String> _normalizedContentCache = {};
+
+  String _getNormalizedTitle(HizbPart p) =>
+      _normalizedTitleCache.putIfAbsent(p.id, () => normalizeArabic(p.title));
+
+  String _getNormalizedSubtitle(HizbPart p) =>
+      _normalizedSubtitleCache.putIfAbsent(p.id, () => normalizeArabic(p.subtitle ?? ''));
+
+  String _getNormalizedContent(HizbPart p) =>
+      _normalizedContentCache.putIfAbsent(p.id, () => normalizeArabic(p.content));
+
   @override
   void initState() {
     super.initState();
@@ -123,12 +137,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildContent(FavoritesProvider favProvider, bool isDark) {
-    final normalizedQuery = normalizeArabic(_searchText);
+    final normalizedQuery = _searchText.isNotEmpty ? normalizeArabic(_searchText) : '';
     final filtered = allParts.where((p) {
       if (_searchText.isEmpty) return true;
-      return normalizeArabic(p.title).contains(normalizedQuery) ||
-          (p.subtitle != null && normalizeArabic(p.subtitle!).contains(normalizedQuery)) ||
-          normalizeArabic(p.content).contains(normalizedQuery);
+      return _getNormalizedTitle(p).contains(normalizedQuery) ||
+          (p.subtitle != null && _getNormalizedSubtitle(p).contains(normalizedQuery)) ||
+          _getNormalizedContent(p).contains(normalizedQuery);
     }).toList();
 
     final favList =
@@ -165,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
       physics: const SmoothScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
-      cacheExtent: 600,
+      cacheExtent: 300,
       slivers: [
         SliverList(
           delegate: SliverChildBuilderDelegate(
