@@ -128,21 +128,17 @@ class _IntroScreenState extends State<IntroScreen>
   }
 
   Future<void> _startSequence() async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 80));
     if (!mounted) return;
     _bgController.forward();
+    _loopController.repeat();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     _contentController.forward();
 
-    // Start slow loop after content appears
-    await Future.delayed(const Duration(milliseconds: 1800));
-    if (!mounted) return;
-    _loopController.repeat();
-
-    // Auto-transition
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // Let the last line settle before leaving.
+    await Future.delayed(const Duration(milliseconds: 3700));
     if (!mounted) return;
     _navigateToHome();
   }
@@ -159,17 +155,22 @@ class _IntroScreenState extends State<IntroScreen>
   void _navigateToHome() {
     if (_navigating) return;
     _navigating = true;
-    _loopController.stop();
+    HapticFeedback.lightImpact();
     _exitController.forward().then((_) {
       if (!mounted) return;
+      _loopController.stop();
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 500),
+          transitionDuration: const Duration(milliseconds: 550),
           pageBuilder: (_, __, ___) => const HomeScreen(),
           transitionsBuilder: (_, animation, __, child) {
+            final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
             return FadeTransition(
-              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-              child: child,
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 1.04, end: 1.0).animate(curved),
+                child: child,
+              ),
             );
           },
         ),
@@ -180,38 +181,12 @@ class _IntroScreenState extends State<IntroScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final size = MediaQuery.sizeOf(context);
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     ));
-
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF040C07) : Colors.white,
-        body: AnimatedBuilder(
-          animation: Listenable.merge([_bgController, _contentController, _loopController, _exitController]),
-          builder: (context, _) {
-            return SlideTransition(
-              position: _exitSlide,
-              child: FadeTransition(
-                opacity: _exitFade,
-                child: _buildBody(context),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final loopVal = _loopController.value;
-    // Breathing: derive from loop using sine (no extra controller)
-    final breathe = (math.sin(loopVal * 2 * math.pi) * 0.5 + 0.5);
 
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final subtitleColor = isDark
@@ -220,197 +195,295 @@ class _IntroScreenState extends State<IntroScreen>
     final faintText = isDark
         ? AppColors.darkTextSecondary.withValues(alpha: 0.5)
         : AppColors.lightTextSecondary.withValues(alpha: 0.7);
-    final titleColor = isDark ? AppColors.darkTextPrimary : AppColors.emeraldGreen;
 
-    return SizedBox.expand(
-      child: Stack(
-        children: [
-          // ── Layer 1: Gradient background (static after fade-in) ──
-          Positioned.fill(
-            child: Opacity(
-              opacity: _bgFade.value,
-              child: const _StaticGradientBg(),
-            ),
-          ),
-
-          // ── Layer 2: Tiled arabesque (static, painted once) ──
-          if (_bgFade.value > 0.01)
-            Positioned.fill(
-              child: Opacity(
-                opacity: _bgFade.value * (isDark ? 0.45 : 0.4),
-                child: ShaderMask(
-                  shaderCallback: (bounds) => RadialGradient(
-                    center: Alignment.center,
-                    radius: 0.8,
-                    colors: [
-                      Colors.transparent,
-                      Colors.white.withValues(alpha: 0.08),
-                      Colors.white.withValues(alpha: 0.45),
-                      Colors.white.withValues(alpha: 0.75),
-                    ],
-                    stops: const [0.0, 0.2, 0.5, 1.0],
-                  ).createShader(bounds),
-                  blendMode: BlendMode.dstIn,
-                  child: CustomPaint(
-                    painter: _TiledArabesquePainter(
-                      color: isDark
-                          ? AppColors.emeraldGreen.withValues(alpha: 0.22)
-                          : AppColors.emeraldGreen.withValues(alpha: 0.16),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── Layer 3: Two rotating geometric rings (was 5) ──
-          if (_bgFade.value > 0.01)
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: Opacity(
-                  opacity: _bgFade.value * 0.85,
-                  child: Transform.scale(
-                    scale: _geometryBloom.value,
-                    child: CustomPaint(
-                      painter: _IslamicGeometryPainter(
-                        rotation: loopVal * 2 * math.pi,
-                        color: isDark
-                            ? AppColors.emeraldGreen.withValues(alpha: 0.14)
-                            : AppColors.emeraldGreen.withValues(alpha: 0.11),
-                        goldColor: isDark
-                            ? AppColors.gold.withValues(alpha: 0.09)
-                            : AppColors.emeraldGreen.withValues(alpha: 0.08),
-                        center: Offset(size.width / 2, size.height * 0.42),
-                        screenWidth: size.width,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF040C07) : Colors.white,
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _navigateToHome,
+          child: FadeTransition(
+            opacity: _exitFade,
+            child: SlideTransition(
+              position: _exitSlide,
+              child: SizedBox.expand(
+                child: Stack(
+                  children: [
+                    // ── Static backdrop: gradient + tiled arabesque + corners.
+                    // Painted once, faded in by the transition, never rebuilt.
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: FadeTransition(
+                          opacity: _bgFade,
+                          child: _buildStaticBackdrop(isDark),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            ),
 
-          // ── Layer 4: Particles (12, no blur) ──
-          if (_bgFade.value > 0.01)
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: Opacity(
-                  opacity: _bgFade.value * (isDark ? 0.6 : 0.45),
-                  child: CustomPaint(
-                    painter: _ParticlePainter(
-                      particles: _particles,
-                      progress: loopVal,
-                      color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                    // ── Rotating geometry rings
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: FadeTransition(
+                          opacity: _bgFade,
+                          child: ScaleTransition(
+                            scale: _geometryBloom,
+                            child: Opacity(
+                              opacity: 0.85,
+                              child: AnimatedBuilder(
+                                animation: _loopController,
+                                builder: (context, _) => CustomPaint(
+                                  painter: _IslamicGeometryPainter(
+                                    rotation: _loopController.value * 2 * math.pi,
+                                    color: isDark
+                                        ? AppColors.emeraldGreen.withValues(alpha: 0.14)
+                                        : AppColors.emeraldGreen.withValues(alpha: 0.11),
+                                    goldColor: isDark
+                                        ? AppColors.gold.withValues(alpha: 0.09)
+                                        : AppColors.emeraldGreen.withValues(alpha: 0.08),
+                                    center: Offset(size.width / 2, size.height * 0.42),
+                                    screenWidth: size.width,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            ),
 
-          // ── Layer 5: Corner arabesques (static, painted once) ──
-          ..._buildCornerArabesques(isDark),
+                    // ── Drifting particles
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: FadeTransition(
+                          opacity: _bgFade,
+                          child: Opacity(
+                            opacity: isDark ? 0.6 : 0.45,
+                            child: AnimatedBuilder(
+                              animation: _loopController,
+                              builder: (context, _) => CustomPaint(
+                                painter: _ParticlePainter(
+                                  particles: _particles,
+                                  progress: _loopController.value,
+                                  color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
 
-          // ── Layer 6: Breathing glow (simple, no extra controller) ──
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0, -0.08),
-                    radius: 0.48 + (breathe * 0.08),
-                    colors: isDark
-                        ? [
-                            AppColors.gold.withValues(alpha: 0.05 + breathe * 0.03),
-                            Colors.transparent,
-                          ]
-                        : [
-                            AppColors.emeraldGreen.withValues(alpha: 0.04 + breathe * 0.02),
-                            Colors.transparent,
+                    // ── Breathing glow behind the title
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: RepaintBoundary(
+                          child: AnimatedBuilder(
+                            animation: _loopController,
+                            builder: (context, _) {
+                              final breathe =
+                                  math.sin(_loopController.value * 2 * math.pi) * 0.5 + 0.5;
+                              return DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: const Alignment(0, -0.08),
+                                    radius: 0.48 + (breathe * 0.08),
+                                    colors: isDark
+                                        ? [
+                                            AppColors.gold
+                                                .withValues(alpha: 0.05 + breathe * 0.03),
+                                            Colors.transparent,
+                                          ]
+                                        : [
+                                            AppColors.emeraldGreen
+                                                .withValues(alpha: 0.04 + breathe * 0.02),
+                                            Colors.transparent,
+                                          ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Content
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 36),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _entrance(
+                              _bismillahFade,
+                              _bismillahSlide,
+                              Text(
+                                'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
+                                style: TextStyle(
+                                    fontFamily: 'Amiri',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w400,
+                                    color: accent.withValues(alpha: 0.85),
+                                    height: 1.8),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            _buildOrnamentLine(_topLineFade, _topLineWidth, accent),
+                            const SizedBox(height: 28),
+                            _entrance(
+                              _titleFade,
+                              _titleSlide,
+                              Column(children: [
+                                ShaderMask(
+                                  shaderCallback: (bounds) => LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: isDark
+                                        ? [
+                                            AppColors.darkTextPrimary,
+                                            AppColors.gold.withValues(alpha: 0.85)
+                                          ]
+                                        : [AppColors.emeraldGreen, AppColors.deepGreen],
+                                  ).createShader(bounds),
+                                  child: const Text('أحزاب',
+                                      style: TextStyle(
+                                          fontFamily: 'ReemKufi',
+                                          fontSize: 62,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                          height: 1.5,
+                                          letterSpacing: 5),
+                                      textAlign: TextAlign.center),
+                                ),
+                                const SizedBox(height: 6),
+                                ShaderMask(
+                                  shaderCallback: (bounds) => LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: isDark
+                                        ? [
+                                            AppColors.gold.withValues(alpha: 0.9),
+                                            AppColors.darkTextPrimary
+                                          ]
+                                        : [AppColors.deepGreen, AppColors.primaryGreen],
+                                  ).createShader(bounds),
+                                  child: const Text('الإمام الشاذلي',
+                                      style: TextStyle(
+                                          fontFamily: 'ReemKufi',
+                                          fontSize: 42,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                          height: 1.5,
+                                          letterSpacing: 3),
+                                      textAlign: TextAlign.center),
+                                ),
+                              ]),
+                            ),
+                            const SizedBox(height: 18),
+                            _entrance(
+                              _subtitleFade,
+                              _subtitleSlide,
+                              Column(children: [
+                                Text(
+                                    'إِمَامُ الْعَارِفِينَ وَقُطْبُ الْأَقْطَابِ وَكَهْفُ أَمْنِ الطُّلَّابِ',
+                                    style: TextStyle(
+                                        fontFamily: 'ScheherazadeNew',
+                                        fontSize: 16,
+                                        color: subtitleColor,
+                                        height: 1.7),
+                                    textAlign: TextAlign.center),
+                                const SizedBox(height: 6),
+                                Text('رضي الله عنه',
+                                    style: TextStyle(
+                                        fontFamily: 'ScheherazadeNew',
+                                        fontSize: 17,
+                                        color: faintText,
+                                        height: 1.6),
+                                    textAlign: TextAlign.center),
+                              ]),
+                            ),
+                            const SizedBox(height: 26),
+                            _buildOrnamentLine(_bottomLineFade, _bottomLineWidth, accent),
+                            const SizedBox(height: 22),
+                            _entrance(
+                              _duaFade,
+                              _duaSlide,
+                              Text('اللَّهُمَّ انْفَعْنَا بِهِ',
+                                  style: TextStyle(
+                                      fontFamily: 'ScheherazadeNew',
+                                      fontSize: 17,
+                                      color: faintText,
+                                      height: 1.6),
+                                  textAlign: TextAlign.center),
+                            ),
                           ],
-                  ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-
-          // ── Layer 7: Content ──
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 36),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _animText(_bismillahFade.value, _bismillahSlide.value,
-                    Text('بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
-                      style: TextStyle(fontFamily: 'Amiri', fontSize: 20, fontWeight: FontWeight.w400,
-                        color: accent.withValues(alpha: 0.85), height: 1.8),
-                      textAlign: TextAlign.center)),
-                  const SizedBox(height: 22),
-                  _buildOrnamentLine(_topLineFade.value, _topLineWidth.value, accent),
-                  const SizedBox(height: 28),
-                  _animText(_titleFade.value, _titleSlide.value,
-                    Column(children: [
-                      // Title uses simple gradient instead of ShaderMask shimmer
-                      ShaderMask(
-                        shaderCallback: (bounds) => LinearGradient(
-                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                          colors: isDark
-                              ? [AppColors.darkTextPrimary, AppColors.gold.withValues(alpha: 0.85)]
-                              : [AppColors.emeraldGreen, AppColors.deepGreen],
-                        ).createShader(bounds),
-                        child: const Text('أحزاب',
-                          style: TextStyle(fontFamily: 'ReemKufi', fontSize: 62, fontWeight: FontWeight.w700,
-                            color: Colors.white, height: 1.5, letterSpacing: 5),
-                          textAlign: TextAlign.center),
-                      ),
-                      const SizedBox(height: 6),
-                      ShaderMask(
-                        shaderCallback: (bounds) => LinearGradient(
-                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                          colors: isDark
-                              ? [AppColors.gold.withValues(alpha: 0.9), AppColors.darkTextPrimary]
-                              : [AppColors.deepGreen, AppColors.primaryGreen],
-                        ).createShader(bounds),
-                        child: const Text('الإمام الشاذلي',
-                          style: TextStyle(fontFamily: 'ReemKufi', fontSize: 42, fontWeight: FontWeight.w700,
-                            color: Colors.white, height: 1.5, letterSpacing: 3),
-                          textAlign: TextAlign.center),
-                      ),
-                    ])),
-                  const SizedBox(height: 18),
-                  _animText(_subtitleFade.value, _subtitleSlide.value,
-                    Column(children: [
-                      Text('إِمَامُ الْعَارِفِينَ وَقُطْبُ الْأَقْطَابِ وَكَهْفُ أَمْنِ الطُّلَّابِ',
-                        style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 16, color: subtitleColor, height: 1.7),
-                        textAlign: TextAlign.center),
-                      const SizedBox(height: 6),
-                      Text('رضي الله عنه',
-                        style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 17, color: faintText, height: 1.6),
-                        textAlign: TextAlign.center),
-                    ])),
-                  const SizedBox(height: 26),
-                  _buildOrnamentLine(_bottomLineFade.value, _bottomLineWidth.value, accent),
-                  const SizedBox(height: 22),
-                  _animText(_duaFade.value, _duaSlide.value,
-                    Text('اللَّهُمَّ انْفَعْنَا بِهِ',
-                      style: TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 17, color: faintText, height: 1.6),
-                      textAlign: TextAlign.center)),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _animText(double opacity, double slideY, Widget child) {
-    return Opacity(opacity: opacity, child: Transform.translate(offset: Offset(0, slideY), child: child));
+  /// Fades + lifts [child] without ever rebuilding it.
+  Widget _entrance(Animation<double> fade, Animation<double> slide, Widget child) {
+    return FadeTransition(
+      opacity: fade,
+      child: AnimatedBuilder(
+        animation: slide,
+        builder: (context, c) =>
+            Transform.translate(offset: Offset(0, slide.value), child: c),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildStaticBackdrop(bool isDark) {
+    return Stack(
+      children: [
+        const Positioned.fill(child: _StaticGradientBg()),
+        Positioned.fill(
+          child: Opacity(
+            opacity: isDark ? 0.45 : 0.4,
+            child: ShaderMask(
+              shaderCallback: (bounds) => RadialGradient(
+                center: Alignment.center,
+                radius: 0.8,
+                colors: [
+                  Colors.transparent,
+                  Colors.white.withValues(alpha: 0.08),
+                  Colors.white.withValues(alpha: 0.45),
+                  Colors.white.withValues(alpha: 0.75),
+                ],
+                stops: const [0.0, 0.2, 0.5, 1.0],
+              ).createShader(bounds),
+              blendMode: BlendMode.dstIn,
+              child: CustomPaint(
+                painter: _TiledArabesquePainter(
+                  color: AppColors.emeraldGreen
+                      .withValues(alpha: isDark ? 0.22 : 0.16),
+                ),
+              ),
+            ),
+          ),
+        ),
+        ..._buildCornerArabesques(isDark),
+      ],
+    );
   }
 
   List<Widget> _buildCornerArabesques(bool isDark) {
     final c1 = isDark ? AppColors.gold.withValues(alpha: 0.35) : AppColors.emeraldGreen.withValues(alpha: 0.22);
     final c2 = isDark ? AppColors.emeraldGreen.withValues(alpha: 0.28) : AppColors.emeraldGreen.withValues(alpha: 0.16);
-    final op1 = _bgFade.value * (isDark ? 0.4 : 0.3);
-    final op2 = _bgFade.value * (isDark ? 0.25 : 0.2);
+    final op1 = isDark ? 0.4 : 0.3;
+    final op2 = isDark ? 0.25 : 0.2;
     return [
       Positioned(top: -15, right: -15, child: Opacity(opacity: op1,
         child: CustomPaint(size: const Size(220, 220), painter: _CornerArabesquePainter(color: c1)))),
@@ -423,18 +496,36 @@ class _IntroScreenState extends State<IntroScreen>
     ];
   }
 
-  Widget _buildOrnamentLine(double fade, double widthFraction, Color accent) {
-    return Opacity(
+  Widget _buildOrnamentLine(
+      Animation<double> fade, Animation<double> widthFraction, Color accent) {
+    return FadeTransition(
       opacity: fade,
-      child: SizedBox(
-        width: 240 * widthFraction,
+      child: AnimatedBuilder(
+        animation: widthFraction,
+        builder: (context, child) =>
+            SizedBox(width: 240 * widthFraction.value, child: child),
         child: Row(children: [
-          Expanded(child: Container(height: 0.5, decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.transparent, accent.withValues(alpha: 0.5)])))),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text('۞', style: TextStyle(fontSize: 14, color: accent.withValues(alpha: 0.55)))),
-          Expanded(child: Container(height: 0.5, decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [accent.withValues(alpha: 0.5), Colors.transparent])))),
+          Expanded(
+              child: Container(
+                  height: 0.5,
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                    Colors.transparent,
+                    accent.withValues(alpha: 0.5)
+                  ])))),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text('۞',
+                  style: TextStyle(
+                      fontSize: 14, color: accent.withValues(alpha: 0.55)))),
+          Expanded(
+              child: Container(
+                  height: 0.5,
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                    accent.withValues(alpha: 0.5),
+                    Colors.transparent
+                  ])))),
         ]),
       ),
     );

@@ -60,7 +60,8 @@ class _DetailScreenState extends State<DetailScreen>
   final GlobalKey _scrollViewKey = GlobalKey();
 
   // AppBar hide/show on scroll
-  double _appBarVisibility = 1.0; // 1.0 = fully visible, 0.0 = hidden
+  // Drives the floating header only, so scrolling never rebuilds the hizb text.
+  final ValueNotifier<double> _appBarVisibility = ValueNotifier<double>(1.0);
   double _lastScrollOffset = 0.0;
 
   // Search match navigation
@@ -206,6 +207,7 @@ class _DetailScreenState extends State<DetailScreen>
     _highlightController.dispose();
     _scrollController.dispose();
     _fontSizeNotifier.dispose();
+    _appBarVisibility.dispose();
     super.dispose();
   }
 
@@ -216,23 +218,21 @@ class _DetailScreenState extends State<DetailScreen>
 
     // At the very top, always show
     if (offset <= 0) {
-      if (_appBarVisibility != 1.0) {
-        setState(() => _appBarVisibility = 1.0);
-      }
+      _appBarVisibility.value = 1.0;
       return;
     }
 
     // Scrolling down → hide, scrolling up → show
     // Use delta sensitivity for smooth transition
-    double newVisibility = _appBarVisibility - (delta / 80.0);
+    double newVisibility = _appBarVisibility.value - (delta / 80.0);
     newVisibility = newVisibility.clamp(0.0, 1.0);
 
     // Snap to fully hidden/shown to avoid lingering partial states
     if (newVisibility < 0.05) newVisibility = 0.0;
     if (newVisibility > 0.95) newVisibility = 1.0;
 
-    if ((newVisibility - _appBarVisibility).abs() > 0.01) {
-      setState(() => _appBarVisibility = newVisibility);
+    if ((newVisibility - _appBarVisibility.value).abs() > 0.01) {
+      _appBarVisibility.value = newVisibility;
     }
   }
 
@@ -788,62 +788,73 @@ class _DetailScreenState extends State<DetailScreen>
               top: 0,
               left: 0,
               right: 0,
-              child: ClipRect(
-                child: Transform.translate(
-                  offset: Offset(0, -headerHeight * (1.0 - _appBarVisibility.clamp(0.0, 1.0))),
-                  child: Opacity(
-                    opacity: _appBarVisibility.clamp(0.0, 1.0),
-                    child: IgnorePointer(
-                      ignoring: _appBarVisibility < 0.1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-                          border: Border(
-                            bottom: BorderSide(
-                              color: (isDark ? AppColors.gold : AppColors.emeraldGreen).withValues(alpha: 0.12),
-                              width: 0.5,
-                            ),
-                          ),
-                        ),
-                        child: SafeArea(
-                          bottom: false,
-                          child: SizedBox(
-                            height: kToolbarHeight,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () => Navigator.of(context).pop(),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8),
-                                      child: Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 20,
-                                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                                      ),
-                                    ),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _appBarVisibility,
+                builder: (context, visibility, child) {
+                  final v = visibility.clamp(0.0, 1.0);
+                  return ClipRect(
+                    child: Transform.translate(
+                      offset: Offset(0, -headerHeight * (1.0 - v)),
+                      child: Opacity(
+                        opacity: v,
+                        child: IgnorePointer(ignoring: v < 0.1, child: child),
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: (isDark ? AppColors.gold : AppColors.emeraldGreen).withValues(alpha: 0.12),
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: SizedBox(
+                      height: kToolbarHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          children: [
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.of(context).maybePop();
+                              },
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 20,
+                                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
                                   ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                        widget.part.title,
-                                        style: TextStyle(
-                                          fontFamily: 'Amiri',
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  _buildBookmarkAction(isDark),
-                                  const SizedBox(width: 4),
-                                  _buildFavoriteAction(isDark),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                  widget.part.title,
+                                  style: TextStyle(
+                                    fontFamily: 'Amiri',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            _buildBookmarkAction(isDark),
+                            const SizedBox(width: 4),
+                            _buildFavoriteAction(isDark),
+                          ],
                         ),
                       ),
                     ),

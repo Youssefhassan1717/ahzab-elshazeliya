@@ -25,8 +25,8 @@ class AhzabApp extends StatelessWidget {
             themeMode: themeProvider.themeMode,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
-            themeAnimationDuration: const Duration(milliseconds: 400),
-            themeAnimationCurve: Curves.easeInOutCubic,
+            themeAnimationDuration: const Duration(milliseconds: 250),
+            themeAnimationCurve: Curves.easeOutCubic,
             home: const IntroScreen(),
           );
         },
