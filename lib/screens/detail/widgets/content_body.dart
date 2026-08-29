@@ -277,21 +277,22 @@ class ContentBody extends StatelessWidget {
   static final _doubleNewlinePattern = RegExp(r'\n{2}');
   static final _multiSpacePattern = RegExp(r' {2,}');
 
-  /// Small centred tinted basmala, as it appeared in the old header card.
+  /// Calligraphic bismillah ligature (U+FDFD) — Amiri renders it Quran-style.
   Widget _basmala() {
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Text(
-        'بسم الله الرحمن الرحيم',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'ScheherazadeNew',
-          color: accent.withValues(alpha: 0.55),
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          height: 1.5,
-          letterSpacing: 0.8,
+      padding: const EdgeInsets.only(bottom: 20),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '\uFDFD',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Amiri',
+            fontSize: 46,
+            height: 1.6,
+            color: accent,
+          ),
         ),
       ),
     );
