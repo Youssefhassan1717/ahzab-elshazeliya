@@ -277,18 +277,22 @@ class ContentBody extends StatelessWidget {
   static final _doubleNewlinePattern = RegExp(r'\n{2}');
   static final _multiSpacePattern = RegExp(r' {2,}');
 
-  /// Reproduces the basmala exactly as it used to read at the top of the hizb text.
+  /// Small centred tinted basmala, as it appeared in the old header card.
   Widget _basmala() {
-    return Text(
-      'بسم الله الرحمن الرحيم',
-      textAlign: fontSize > 26 ? TextAlign.right : TextAlign.justify,
-      style: TextStyle(
-        fontFamily: 'ScheherazadeNew',
-        fontSize: fontSize,
-        height: 1.9,
-        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-        fontWeight: FontWeight.w400,
-        letterSpacing: fontSize > 24 ? 0.0 : 0.1,
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text(
+        'بسم الله الرحمن الرحيم',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'ScheherazadeNew',
+          color: accent.withValues(alpha: 0.55),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          height: 1.5,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
