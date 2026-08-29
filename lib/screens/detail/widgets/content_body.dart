@@ -222,20 +222,26 @@ class ContentBody extends StatelessWidget {
             child: _eightPointStar(accent, 5),
           ),
           if (hasLabel)
-            Flexible(
+            // Sized, not flexible, so the two rules share the leftover space
+            // evenly and the name always lands dead centre.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 240),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Amiri',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    color: accent,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Amiri',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.4,
+                      color: accent,
+                    ),
                   ),
                 ),
               ),
@@ -279,7 +285,6 @@ class ContentBody extends StatelessWidget {
 
   /// Calligraphic bismillah ligature (U+FDFD) — Amiri renders it Quran-style.
   Widget _basmala() {
-    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: FittedBox(
@@ -291,7 +296,9 @@ class ContentBody extends StatelessWidget {
             fontFamily: 'Amiri',
             fontSize: 46,
             height: 1.6,
-            color: accent,
+            color: isDark
+                ? AppColors.darkTextPrimary
+                : AppColors.lightTextPrimary,
           ),
         ),
       ),
