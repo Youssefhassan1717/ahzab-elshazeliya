@@ -342,13 +342,9 @@ class _DetailScreenState extends State<DetailScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         RepaintBoundary(
-          child: DetailHeader(
-            title: widget.part.title,
-            subtitle: widget.part.subtitle,
-            fontSize: fontSize,
-          ),
+          child: DetailHeader(title: widget.part.title),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10),
         RepaintBoundary(
           child: Consumer<BookmarksProvider>(
             builder: (context, bookProvider, _) {
