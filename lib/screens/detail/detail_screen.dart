@@ -11,7 +11,6 @@ import '../../providers/bookmarks_provider.dart';
 import '../../providers/favorites_provider.dart';
 import 'widgets/bookmarks_panel.dart';
 import 'widgets/content_body.dart';
-import 'widgets/detail_header.dart';
 import 'widgets/zoom_instructions.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -342,10 +341,6 @@ class _DetailScreenState extends State<DetailScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         RepaintBoundary(
-          child: DetailHeader(title: widget.part.title),
-        ),
-        const SizedBox(height: 10),
-        RepaintBoundary(
           child: Consumer<BookmarksProvider>(
             builder: (context, bookProvider, _) {
               final bookmarks =
@@ -355,6 +350,7 @@ class _DetailScreenState extends State<DetailScreen>
                 builder: (context, _) {
                   return ContentBody(
                     content: widget.part.content,
+                    title: widget.part.title,
                     fontSize: fontSize,
                     isDark: isDark,
                     searchQuery: widget.searchQuery,

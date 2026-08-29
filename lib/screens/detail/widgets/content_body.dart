@@ -6,6 +6,7 @@ import '../../../providers/bookmarks_provider.dart';
 
 class ContentBody extends StatelessWidget {
   final String content;
+  final String title;
   final double fontSize;
   final bool isDark;
   final String searchQuery;
@@ -23,6 +24,7 @@ class ContentBody extends StatelessWidget {
   const ContentBody({
     super.key,
     required this.content,
+    this.title = '',
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
@@ -48,7 +50,20 @@ class ContentBody extends StatelessWidget {
   Widget build(BuildContext context) {
     // Multi-section content: skip outer frame, each section has its own inner frame
     if (_hasMultipleSections) {
-      return content.isNotEmpty ? _buildContent() : _buildEmptyState();
+      final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ornamentalBand(
+            accent,
+            accent.withValues(alpha: isDark ? 0.18 : 0.12),
+            accent.withValues(alpha: isDark ? 0.08 : 0.05),
+            label: title,
+          ),
+          const SizedBox(height: 4),
+          content.isNotEmpty ? _buildContent() : _buildEmptyState(),
+        ],
+      );
     }
 
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -148,8 +163,8 @@ class ContentBody extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Top ornamental band
-                  _ornamentalBand(accent, accentSoft, accentFaint),
+                  // Top ornamental band — carries the hizb name
+                  _ornamentalBand(accent, accentSoft, accentFaint, label: title),
 
                   // Inner frame with content
                   Container(
@@ -184,10 +199,13 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Decorative band at top/bottom of the frame
-  Widget _ornamentalBand(Color accent, Color accentSoft, Color accentFaint) {
+  /// Decorative band at top/bottom of the frame.
+  /// When [label] is set it replaces the centre ornament with that text.
+  Widget _ornamentalBand(Color accent, Color accentSoft, Color accentFaint,
+      {String? label}) {
+    final hasLabel = label != null && label.isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: hasLabel ? 6 : 8),
       decoration: BoxDecoration(
         color: accentFaint,
         border: Border(
@@ -203,13 +221,33 @@ class ContentBody extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 5),
             child: _eightPointStar(accent, 5),
           ),
-          Text(
-            ' ۞ ',
-            style: TextStyle(
-              fontSize: 12,
-              color: accent.withValues(alpha: 0.35),
+          if (hasLabel)
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Amiri',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                    color: accent,
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(
+              ' ۞ ',
+              style: TextStyle(
+                fontSize: 12,
+                color: accent.withValues(alpha: 0.35),
+              ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 5),
             child: _eightPointStar(accent, 5),
@@ -239,6 +277,25 @@ class ContentBody extends StatelessWidget {
   static final _doubleNewlinePattern = RegExp(r'\n{2}');
   static final _multiSpacePattern = RegExp(r' {2,}');
 
+  Widget _basmala() {
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Text(
+        'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'ScheherazadeNew',
+          color: accent.withValues(alpha: 0.55),
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          height: 1.5,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     int globalSearchOffset = 0;
     int chunkIndex = 0;
@@ -257,7 +314,10 @@ class ContentBody extends StatelessWidget {
     }
 
     if (!content.contains('§SECTION§')) {
-      return buildText(content);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [_basmala(), buildText(content)],
+      );
     }
 
     // Parse sections: collect (header, textAfter) pairs
@@ -434,7 +494,10 @@ class ContentBody extends StatelessWidget {
                           horizontal: fontSize > 24 ? 4.0 : 10.0,
                           vertical: 20,
                         ),
-                        child: body ?? const SizedBox.shrink(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [_basmala(), if (body != null) body],
+                        ),
                       ),
                     ),
 
