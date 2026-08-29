@@ -50,20 +50,7 @@ class ContentBody extends StatelessWidget {
   Widget build(BuildContext context) {
     // Multi-section content: skip outer frame, each section has its own inner frame
     if (_hasMultipleSections) {
-      final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _ornamentalBand(
-            accent,
-            accent.withValues(alpha: isDark ? 0.18 : 0.12),
-            accent.withValues(alpha: isDark ? 0.08 : 0.05),
-            label: title,
-          ),
-          const SizedBox(height: 4),
-          content.isNotEmpty ? _buildContent() : _buildEmptyState(),
-        ],
-      );
+      return content.isNotEmpty ? _buildContent() : _buildEmptyState();
     }
 
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -283,6 +270,18 @@ class ContentBody extends StatelessWidget {
   static final _doubleNewlinePattern = RegExp(r'\n{2}');
   static final _multiSpacePattern = RegExp(r' {2,}');
 
+  /// Drops a basmala the text already opens with, since one is drawn above it.
+  static String _stripLeadingBasmala(String text) {
+    final trimmed = text.trimLeft();
+    final matches = findNormalizedMatches(trimmed, 'بسم الله الرحمن الرحيم');
+    if (matches.isEmpty) return text;
+    final (start, end) = matches.first;
+    if (start > 2) return text;
+    return trimmed
+        .substring(end)
+        .replaceFirst(RegExp(r'^[\s*.،ـ\u0640]+'), '');
+  }
+
   /// Calligraphic bismillah ligature (U+FDFD) — Amiri renders it Quran-style.
   Widget _basmala() {
     return Padding(
@@ -325,7 +324,7 @@ class ContentBody extends StatelessWidget {
     if (!content.contains('§SECTION§')) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [_basmala(), buildText(content)],
+        children: [_basmala(), buildText(_stripLeadingBasmala(content))],
       );
     }
 
@@ -359,18 +358,20 @@ class ContentBody extends StatelessWidget {
         // Build inner framed card for this sub-hizb
         parts.add(_buildInnerSectionCard(
           title: entry.header!,
-          body: entry.text.isNotEmpty ? buildText(entry.text) : null,
+          body: entry.text.isNotEmpty
+              ? buildText(_stripLeadingBasmala(entry.text))
+              : null,
         ));
       } else if (entry.header != null) {
         // Single section — render flat as before
         parts.add(_buildSectionHeader(entry.header!));
         if (entry.text.isNotEmpty) {
-          parts.add(buildText(entry.text));
+          parts.add(buildText(_stripLeadingBasmala(entry.text)));
         }
       } else {
         // Text before any section header
         if (entry.text.isNotEmpty) {
-          parts.add(buildText(entry.text));
+          parts.add(buildText(_stripLeadingBasmala(entry.text)));
         }
       }
     }
@@ -466,29 +467,8 @@ class ContentBody extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Top ornamental band with section title
-                    _ornamentalBand(accent, accentSoft, accentFaint),
-
-                    // Section title
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            '﴾  $title  ﴿',
-                            style: TextStyle(
-                              fontFamily: 'Amiri',
-                              fontSize: fontSize * 0.95,
-                              fontWeight: FontWeight.w700,
-                              color: accent,
-                              height: 1.6,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _ornamentalBand(accent, accentSoft, accentFaint,
+                        label: title),
 
                     // Inner frame with content
                     Container(
