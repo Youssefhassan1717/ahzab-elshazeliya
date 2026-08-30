@@ -7,6 +7,9 @@ import '../../../providers/bookmarks_provider.dart';
 class ContentBody extends StatelessWidget {
   final String content;
   final String title;
+
+  /// Splits blank-line separated blocks into individually framed du'as.
+  final bool separateParagraphs;
   final double fontSize;
   final bool isDark;
   final String searchQuery;
@@ -25,6 +28,7 @@ class ContentBody extends StatelessWidget {
     super.key,
     required this.content,
     this.title = '',
+    this.separateParagraphs = false,
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
@@ -304,6 +308,89 @@ class ContentBody extends StatelessWidget {
     );
   }
 
+  static final _blankLinePattern = RegExp(r'\n\s*\n');
+
+  /// One block per du'a, each with its attribution line and a divider between.
+  Widget _buildSeparatedDuas(Widget Function(String) buildText) {
+    final blocks = content
+        .split(_blankLinePattern)
+        .map((b) => b.trim())
+        .where((b) => b.isNotEmpty)
+        .toList();
+
+    final parts = <Widget>[_basmala()];
+
+    for (int i = 0; i < blocks.length; i++) {
+      var block = i == 0 ? _stripLeadingBasmala(blocks[i]).trim() : blocks[i];
+      if (block.isEmpty) continue;
+
+      String? heading;
+      final nl = block.indexOf('\n');
+      if (nl > 0) {
+        final first = block.substring(0, nl).trim();
+        if (first.endsWith(':') && first.length <= 90) {
+          heading = first.substring(0, first.length - 1).trim();
+          block = block.substring(nl + 1).trim();
+        }
+      }
+
+      if (parts.length > 1) parts.add(_duaDivider());
+      if (heading != null && heading.isNotEmpty) parts.add(_duaHeading(heading));
+      if (block.isNotEmpty) parts.add(buildText(block));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: parts,
+    );
+  }
+
+  Widget _duaHeading(String text) {
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Amiri',
+          fontSize: fontSize * 0.8,
+          fontWeight: FontWeight.w700,
+          height: 1.6,
+          color: accent,
+        ),
+      ),
+    );
+  }
+
+  Widget _duaDivider() {
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 22),
+      child: Row(
+        children: [
+          Expanded(child: _gradientLine(accent, true)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: _eightPointStar(accent, 4),
+          ),
+          Text(
+            '۞',
+            style: TextStyle(
+              fontSize: 15,
+              color: accent.withValues(alpha: 0.5),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: _eightPointStar(accent, 4),
+          ),
+          Expanded(child: _gradientLine(accent, false)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContent() {
     int globalSearchOffset = 0;
     int chunkIndex = 0;
@@ -322,6 +409,9 @@ class ContentBody extends StatelessWidget {
     }
 
     if (!content.contains('§SECTION§')) {
+      if (separateParagraphs) {
+        return _buildSeparatedDuas(buildText);
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [_basmala(), buildText(_stripLeadingBasmala(content))],

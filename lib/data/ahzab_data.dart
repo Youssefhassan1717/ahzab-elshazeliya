@@ -1,6 +1,12 @@
 import '../models/hizb_part.dart';
 
+/// حزب الأدعية is kept last in the list regardless of where it sits below.
 final List<HizbPart> allParts = [
+  ..._rawParts.where((p) => p.id != 'ad3eya'),
+  ..._rawParts.where((p) => p.id == 'ad3eya'),
+];
+
+final List<HizbPart> _rawParts = [
   const HizbPart(
     id: 'bahr',
     title: 'حزب البحر',
