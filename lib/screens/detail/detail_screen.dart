@@ -25,7 +25,7 @@ class DetailScreen extends StatefulWidget {
 
 class _DetailScreenState extends State<DetailScreen>
     with TickerProviderStateMixin {
-  static const double _baseFontSize = 16.0;
+  static const double _baseFontSize = 19.0;
   static const double _minFontSize = 10.0;
   static const double _maxFontSize = 44.0;
 
