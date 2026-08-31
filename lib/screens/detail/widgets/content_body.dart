@@ -196,7 +196,7 @@ class ContentBody extends StatelessWidget {
       {String? label}) {
     final hasLabel = label != null && label.isNotEmpty;
     return Container(
-      padding: EdgeInsets.symmetric(vertical: hasLabel ? 10 : 8),
+      padding: EdgeInsets.symmetric(vertical: hasLabel ? 5 : 8),
       decoration: BoxDecoration(
         color: accentFaint,
         border: Border(
@@ -218,46 +218,22 @@ class ContentBody extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 260),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '❁',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.0,
-                        color: accent.withValues(alpha: 0.5),
-                      ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '﴿ $label ﴾',
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Amiri',
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                      color: accent,
                     ),
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '﴿  $label  ﴾',
-                        maxLines: 1,
-                        softWrap: false,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Amiri',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                          letterSpacing: 0.5,
-                          color: accent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '❁',
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.0,
-                        color: accent.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             )
