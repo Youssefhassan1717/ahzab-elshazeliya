@@ -717,7 +717,13 @@ class ContentBody extends StatelessWidget {
     final spans = <TextSpan>[];
     int cursor = 0;
 
-    // Emits a slice, splitting it so emphasised parts get the heavier weight.
+    // On dark backgrounds a heavier weight alone reads as blur, so brighten too.
+    final emphasisStyle = TextStyle(
+      fontWeight: isDark ? FontWeight.w700 : FontWeight.w600,
+      color: isDark ? Colors.white : null,
+    );
+
+    // Emits a slice, splitting it so emphasised parts stand out.
     void addSpan(int start, int end, TextStyle? style) {
       if (end <= start) return;
       int cur = start;
@@ -730,8 +736,11 @@ class ContentBody extends StatelessWidget {
         final e = math.min(ee, end);
         spans.add(TextSpan(
           text: text.substring(s, e),
-          style: (style ?? const TextStyle())
-              .copyWith(fontWeight: FontWeight.w600),
+          style: (style ?? const TextStyle()).merge(
+            style?.color != null
+                ? emphasisStyle.copyWith(color: style!.color)
+                : emphasisStyle,
+          ),
         ));
         cur = e;
       }
