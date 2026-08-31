@@ -29,16 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // Cache normalized text per hizb to avoid re-computing on every rebuild
   static final Map<String, String> _normalizedTitleCache = {};
   static final Map<String, String> _normalizedSubtitleCache = {};
-  static final Map<String, String> _normalizedContentCache = {};
 
   String _getNormalizedTitle(HizbPart p) =>
       _normalizedTitleCache.putIfAbsent(p.id, () => normalizeArabic(p.title));
 
   String _getNormalizedSubtitle(HizbPart p) =>
       _normalizedSubtitleCache.putIfAbsent(p.id, () => normalizeArabic(p.subtitle ?? ''));
-
-  String _getNormalizedContent(HizbPart p) =>
-      _normalizedContentCache.putIfAbsent(p.id, () => normalizeArabic(p.content));
 
   @override
   void initState() {
@@ -142,7 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_searchText.isEmpty) return true;
       return _getNormalizedTitle(p).contains(normalizedQuery) ||
           (p.subtitle != null && _getNormalizedSubtitle(p).contains(normalizedQuery)) ||
-          _getNormalizedContent(p).contains(normalizedQuery);
+          findNormalizedMatches(p.content, normalizedQuery, wholeWord: true)
+              .isNotEmpty;
     }).toList();
 
     final favList =
