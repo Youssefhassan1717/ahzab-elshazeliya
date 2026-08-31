@@ -311,6 +311,8 @@ class ContentBody extends StatelessWidget {
   static final _blankLinePattern = RegExp(r'\n\s*\n');
 
   /// One block per du'a, each with its attribution line and a divider between.
+  /// A block whose whole body is the basmala renders the calligraphic form,
+  /// so it is never repeated as plain text.
   Widget _buildSeparatedDuas(Widget Function(String) buildText) {
     final blocks = content
         .split(_blankLinePattern)
@@ -318,12 +320,9 @@ class ContentBody extends StatelessWidget {
         .where((b) => b.isNotEmpty)
         .toList();
 
-    final parts = <Widget>[_basmala()];
+    final parts = <Widget>[];
 
-    for (int i = 0; i < blocks.length; i++) {
-      var block = i == 0 ? _stripLeadingBasmala(blocks[i]).trim() : blocks[i];
-      if (block.isEmpty) continue;
-
+    for (var block in blocks) {
       String? heading;
       final nl = block.indexOf('\n');
       if (nl > 0) {
@@ -333,10 +332,16 @@ class ContentBody extends StatelessWidget {
           block = block.substring(nl + 1).trim();
         }
       }
+      if (block.isEmpty) continue;
 
-      if (parts.length > 1) parts.add(_duaDivider());
+      if (parts.isNotEmpty) parts.add(_duaDivider());
       if (heading != null && heading.isNotEmpty) parts.add(_duaHeading(heading));
-      if (block.isNotEmpty) parts.add(buildText(block));
+
+      if (_stripLeadingBasmala(block).trim().isEmpty) {
+        parts.add(_basmala());
+      } else {
+        parts.add(buildText(block));
+      }
     }
 
     return Column(
