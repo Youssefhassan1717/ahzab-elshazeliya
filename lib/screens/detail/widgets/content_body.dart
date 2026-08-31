@@ -196,7 +196,7 @@ class ContentBody extends StatelessWidget {
       {String? label}) {
     final hasLabel = label != null && label.isNotEmpty;
     return Container(
-      padding: EdgeInsets.symmetric(vertical: hasLabel ? 6 : 8),
+      padding: EdgeInsets.symmetric(vertical: hasLabel ? 10 : 8),
       decoration: BoxDecoration(
         color: accentFaint,
         border: Border(
@@ -216,24 +216,48 @@ class ContentBody extends StatelessWidget {
             // Sized, not flexible, so the two rules share the leftover space
             // evenly and the name always lands dead centre.
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 240),
+              constraints: const BoxConstraints(maxWidth: 260),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    softWrap: false,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Amiri',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      height: 1.4,
-                      color: accent,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '❁',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.0,
+                        color: accent.withValues(alpha: 0.5),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '﴿  $label  ﴾',
+                        maxLines: 1,
+                        softWrap: false,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Amiri',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                          letterSpacing: 0.5,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '❁',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.0,
+                        color: accent.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
@@ -401,7 +425,8 @@ class ContentBody extends StatelessWidget {
       final result = _buildBodyText(text, globalSearchOffset, idx);
       if (searchQuery.isNotEmpty) {
         final normalizedQuery = normalizeArabic(searchQuery);
-        globalSearchOffset += findNormalizedMatches(text, normalizedQuery).length;
+        globalSearchOffset +=
+            findNormalizedMatches(text, normalizedQuery, wholeWord: true).length;
       }
       // Wrap with key for precise scroll positioning
       final key = chunkKeys[idx];
@@ -619,7 +644,8 @@ class ContentBody extends StatelessWidget {
     int searchMatchCount = 0;
     if (searchQuery.isNotEmpty) {
       final normalizedQuery = normalizeArabic(searchQuery);
-      for (final (start, end) in findNormalizedMatches(text, normalizedQuery)) {
+      for (final (start, end)
+          in findNormalizedMatches(text, normalizedQuery, wholeWord: true)) {
         final globalIdx = searchMatchOffset + searchMatchCount;
         final isActive = globalIdx == activeSearchMatchIndex;
         allRanges.add(_HighlightRange(start, end,

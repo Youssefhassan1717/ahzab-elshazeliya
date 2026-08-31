@@ -35,8 +35,16 @@ final _alefVariants = RegExp(r'[أإآٱ]');
 /// Finds all match ranges in [original] text where the normalized form
 /// matches [normalizedQuery].
 ///
+/// When [wholeWord] is true a hit only counts if it covers a complete word.
+/// A leading Arabic prefix (ال، و، ف، ب، ك، ل and their combinations) is still
+/// allowed, so "بحر" keeps matching "البحر" while "صلي" no longer hits "صليت".
+///
 /// Returns a list of (start, end) pairs in the ORIGINAL text coordinates.
-List<(int, int)> findNormalizedMatches(String original, String normalizedQuery) {
+List<(int, int)> findNormalizedMatches(
+  String original,
+  String normalizedQuery, {
+  bool wholeWord = false,
+}) {
   if (normalizedQuery.isEmpty) return [];
 
   final matches = <(int, int)>[];
@@ -74,9 +82,15 @@ List<(int, int)> findNormalizedMatches(String original, String normalizedQuery) 
     final normIdx = normStr.indexOf(normalizedQuery, searchFrom);
     if (normIdx < 0) break;
 
+    final normEnd = normIdx + normalizedQuery.length - 1;
+
+    if (wholeWord && !_isWholeWord(normStr, normIdx, normEnd)) {
+      searchFrom = normIdx + 1;
+      continue;
+    }
+
     // Map back to original indices
     final origStart = normChars[normIdx];
-    final normEnd = normIdx + normalizedQuery.length - 1;
     // The end in original is the char at normEnd, plus any trailing diacritics
     int origEnd = normChars[normEnd] + 1;
     // Include any diacritics that follow the last matched char in original
@@ -91,6 +105,20 @@ List<(int, int)> findNormalizedMatches(String original, String normalizedQuery) 
   return matches;
 }
 
+final _wordChar = RegExp(r'[\u0621-\u064A\u0671a-zA-Z0-9]');
+final _allowedPrefix = RegExp(r'^(?:[وف])?(?:[بكل])?(?:ال)?$');
+
+/// True when [start]..[end] covers a full word, ignoring a leading article.
+bool _isWholeWord(String text, int start, int end) {
+  if (end + 1 < text.length && _wordChar.hasMatch(text[end + 1])) return false;
+
+  int wordStart = start;
+  while (wordStart > 0 && _wordChar.hasMatch(text[wordStart - 1])) {
+    wordStart--;
+  }
+  return _allowedPrefix.hasMatch(text.substring(wordStart, start));
+}
+
 /// Finds the best match for a snippet preview — prefers word-boundary matches
 /// over substring matches within longer words.
 ///
@@ -102,7 +130,8 @@ List<(int, int)> findNormalizedMatches(String original, String normalizedQuery) 
 ///
 /// Returns null if no match found.
 (int, int)? findBestSnippetMatch(String original, String normalizedQuery) {
-  final matches = findNormalizedMatches(original, normalizedQuery);
+  final matches =
+      findNormalizedMatches(original, normalizedQuery, wholeWord: true);
   if (matches.isEmpty) return null;
 
   (int, int)? bestMatch;

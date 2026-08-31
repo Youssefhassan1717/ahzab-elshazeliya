@@ -155,7 +155,7 @@ class _DetailScreenState extends State<DetailScreen>
   void _computeSearchMatches() {
     final cleanContent = _cleanContent(widget.part.content);
     final normalizedQuery = normalizeArabic(widget.searchQuery);
-    _searchMatches = findNormalizedMatches(cleanContent, normalizedQuery);
+    _searchMatches = findNormalizedMatches(cleanContent, normalizedQuery, wholeWord: true);
     _currentMatchIndex = 0;
   }
 
@@ -832,18 +832,7 @@ class _DetailScreenState extends State<DetailScreen>
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                  widget.part.title,
-                                  style: TextStyle(
-                                    fontFamily: 'Amiri',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                            const Spacer(),
                             _buildBookmarkAction(isDark),
                             const SizedBox(width: 4),
                             _buildFavoriteAction(isDark),
