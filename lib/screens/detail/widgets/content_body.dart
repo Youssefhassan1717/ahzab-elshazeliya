@@ -598,14 +598,43 @@ class ContentBody extends StatelessWidget {
     );
   }
 
+  /// Text wrapped in a pair of `§B§` markers is rendered semi-bold.
+  static const String boldMarker = '§B§';
+
+  /// Removes the bold markers and returns the ranges they enclosed.
+  static (String, List<(int, int)>) _extractEmphasis(String src) {
+    if (!src.contains(boldMarker)) return (src, const []);
+    final buf = StringBuffer();
+    final ranges = <(int, int)>[];
+    int? open;
+    for (int i = 0; i < src.length;) {
+      if (src.startsWith(boldMarker, i)) {
+        if (open == null) {
+          open = buf.length;
+        } else {
+          if (buf.length > open) ranges.add((open, buf.length));
+          open = null;
+        }
+        i += boldMarker.length;
+      } else {
+        buf.write(src[i]);
+        i++;
+      }
+    }
+    final out = buf.toString();
+    if (open != null && out.length > open) ranges.add((open, out.length));
+    return (out, ranges);
+  }
+
   Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
     // Collapse multiple blank lines into one newline, collapse multiple spaces,
     // but preserve single newlines so the text shows proper line breaks.
-    final text = rawText
+    final cleaned = rawText
         .replaceAll(_multiNewlinePattern, '\n')
         .replaceAll(_doubleNewlinePattern, '\n')
         .replaceAll(_multiSpacePattern, ' ')
         .trim();
+    final (text, emphasis) = _extractEmphasis(cleaned);
 
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
@@ -673,7 +702,7 @@ class ContentBody extends StatelessWidget {
     // At large font sizes, justify creates ugly gaps between words
     final textAlign = fontSize > 26 ? TextAlign.right : TextAlign.justify;
 
-    if (allRanges.isEmpty) {
+    if (allRanges.isEmpty && emphasis.isEmpty) {
       return Text(text, style: baseStyle, textAlign: textAlign, softWrap: true);
     }
 
@@ -688,6 +717,29 @@ class ContentBody extends StatelessWidget {
     final spans = <TextSpan>[];
     int cursor = 0;
 
+    // Emits a slice, splitting it so emphasised parts get the heavier weight.
+    void addSpan(int start, int end, TextStyle? style) {
+      if (end <= start) return;
+      int cur = start;
+      for (final (es, ee) in emphasis) {
+        if (ee <= cur || es >= end) continue;
+        if (es > cur) {
+          spans.add(TextSpan(text: text.substring(cur, es), style: style));
+        }
+        final s = math.max(es, cur);
+        final e = math.min(ee, end);
+        spans.add(TextSpan(
+          text: text.substring(s, e),
+          style: (style ?? const TextStyle())
+              .copyWith(fontWeight: FontWeight.w600),
+        ));
+        cur = e;
+      }
+      if (cur < end) {
+        spans.add(TextSpan(text: text.substring(cur, end), style: style));
+      }
+    }
+
     // Deduplicate: for overlapping ranges, keep highest priority
     final effectiveRanges = <_HighlightRange>[];
     for (final range in allRanges) {
@@ -700,9 +752,7 @@ class ContentBody extends StatelessWidget {
     }
 
     for (final range in effectiveRanges) {
-      if (range.start > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, range.start)));
-      }
+      addSpan(cursor, range.start, null);
 
       TextStyle hlStyle;
       switch (range.type) {
@@ -747,16 +797,11 @@ class ContentBody extends StatelessWidget {
           );
       }
 
-      spans.add(TextSpan(
-        text: text.substring(range.start, range.end),
-        style: hlStyle,
-      ));
+      addSpan(range.start, range.end, hlStyle);
       cursor = range.end;
     }
 
-    if (cursor < text.length) {
-      spans.add(TextSpan(text: text.substring(cursor)));
-    }
+    addSpan(cursor, text.length, null);
 
     return Text.rich(
       TextSpan(style: baseStyle, children: spans),
