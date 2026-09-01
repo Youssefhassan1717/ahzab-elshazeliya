@@ -10,6 +10,7 @@ class ContentBody extends StatelessWidget {
 
   /// Splits blank-line separated blocks into individually framed du'as.
   final bool separateParagraphs;
+  final String bodyFontFamily;
   final double fontSize;
   final bool isDark;
   final String searchQuery;
@@ -29,6 +30,7 @@ class ContentBody extends StatelessWidget {
     required this.content,
     this.title = '',
     this.separateParagraphs = false,
+    this.bodyFontFamily = 'ScheherazadeNew',
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
@@ -637,7 +639,7 @@ class ContentBody extends StatelessWidget {
     final (text, emphasis) = _extractEmphasis(cleaned);
 
     final baseStyle = TextStyle(
-      fontFamily: 'ScheherazadeNew',
+      fontFamily: bodyFontFamily,
       fontSize: fontSize,
       height: 1.9,
       color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,

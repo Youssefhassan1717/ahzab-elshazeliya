@@ -42,6 +42,9 @@ flutter:
           weight: 600
         - asset: assets/fonts/ScheherazadeNew-Bold.ttf
           weight: 700
+    - family: UthmanicHafs
+      fonts:
+        - asset: assets/fonts/UthmanicHafs.otf
     - family: ElMessiri
       fonts:
         - asset: assets/fonts/ElMessiri-SemiBold.ttf
