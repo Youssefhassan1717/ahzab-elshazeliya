@@ -1,10 +1,39 @@
 ﻿import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
-class HizbSearchBar extends StatelessWidget {
+class HizbSearchBar extends StatefulWidget {
   final ValueChanged<String> onChanged;
 
   const HizbSearchBar({super.key, required this.onChanged});
+
+  @override
+  State<HizbSearchBar> createState() => _HizbSearchBarState();
+}
+
+class _HizbSearchBarState extends State<HizbSearchBar> {
+  final TextEditingController _controller = TextEditingController();
+  bool _hasText = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleChanged(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isNotEmpty != _hasText) {
+      setState(() => _hasText = trimmed.isNotEmpty);
+    }
+    widget.onChanged(trimmed);
+  }
+
+  void _clear() {
+    _controller.clear();
+    setState(() => _hasText = false);
+    widget.onChanged('');
+    FocusScope.of(context).unfocus();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +56,7 @@ class HizbSearchBar extends StatelessWidget {
         ],
       ),
       child: TextField(
+        controller: _controller,
         decoration: InputDecoration(
           hintText: 'ابحث في الأحزاب...',
           hintStyle: TextStyle(
@@ -39,6 +69,16 @@ class HizbSearchBar extends StatelessWidget {
             color: AppColors.emeraldGreen,
             size: 24,
           ),
+          suffixIcon: _hasText
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                  tooltip: 'مسح البحث',
+                  onPressed: _clear,
+                )
+              : null,
           border: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -48,7 +88,7 @@ class HizbSearchBar extends StatelessWidget {
           fontSize: 16,
           color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
         ),
-        onChanged: (value) => onChanged(value.trim()),
+        onChanged: _handleChanged,
       ),
     );
   }
