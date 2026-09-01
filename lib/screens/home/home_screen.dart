@@ -9,6 +9,7 @@ import '../../data/ahzab_data.dart';
 import '../../models/hizb_part.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/ads_bootstrap.dart';
 import '../about/about_screen.dart';
 import 'widgets/hizb_card.dart';
 import 'widgets/search_bar.dart';
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // Mark initial animation done after first frame renders
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdsBootstrap.start();
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) setState(() => _initialAnimationDone = true);
       });

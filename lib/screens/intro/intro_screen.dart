@@ -228,22 +228,19 @@ class _IntroScreenState extends State<IntroScreen>
                           opacity: _bgFade,
                           child: ScaleTransition(
                             scale: _geometryBloom,
-                            child: Opacity(
-                              opacity: 0.85,
-                              child: AnimatedBuilder(
-                                animation: _loopController,
-                                builder: (context, _) => CustomPaint(
-                                  painter: _IslamicGeometryPainter(
-                                    rotation: _loopController.value * 2 * math.pi,
-                                    color: isDark
-                                        ? AppColors.emeraldGreen.withValues(alpha: 0.14)
-                                        : AppColors.emeraldGreen.withValues(alpha: 0.11),
-                                    goldColor: isDark
-                                        ? AppColors.gold.withValues(alpha: 0.09)
-                                        : AppColors.emeraldGreen.withValues(alpha: 0.08),
-                                    center: Offset(size.width / 2, size.height * 0.42),
-                                    screenWidth: size.width,
-                                  ),
+                            child: AnimatedBuilder(
+                              animation: _loopController,
+                              builder: (context, _) => CustomPaint(
+                                painter: _IslamicGeometryPainter(
+                                  rotation: _loopController.value * 2 * math.pi,
+                                  color: isDark
+                                      ? AppColors.emeraldGreen.withValues(alpha: 0.119)
+                                      : AppColors.emeraldGreen.withValues(alpha: 0.094),
+                                  goldColor: isDark
+                                      ? AppColors.gold.withValues(alpha: 0.077)
+                                      : AppColors.emeraldGreen.withValues(alpha: 0.068),
+                                  center: Offset(size.width / 2, size.height * 0.42),
+                                  screenWidth: size.width,
                                 ),
                               ),
                             ),
@@ -257,16 +254,14 @@ class _IntroScreenState extends State<IntroScreen>
                       child: RepaintBoundary(
                         child: FadeTransition(
                           opacity: _bgFade,
-                          child: Opacity(
-                            opacity: isDark ? 0.6 : 0.45,
-                            child: AnimatedBuilder(
-                              animation: _loopController,
-                              builder: (context, _) => CustomPaint(
-                                painter: _ParticlePainter(
-                                  particles: _particles,
-                                  progress: _loopController.value,
-                                  color: isDark ? AppColors.gold : AppColors.emeraldGreen,
-                                ),
+                          child: AnimatedBuilder(
+                            animation: _loopController,
+                            builder: (context, _) => CustomPaint(
+                              painter: _ParticlePainter(
+                                particles: _particles,
+                                progress: _loopController.value,
+                                color: isDark ? AppColors.gold : AppColors.emeraldGreen,
+                                intensity: isDark ? 0.6 : 0.45,
                               ),
                             ),
                           ),
@@ -274,35 +269,24 @@ class _IntroScreenState extends State<IntroScreen>
                       ),
                     ),
 
-                    // ── Breathing glow behind the title
+                    // ── Soft glow behind the title
                     Positioned.fill(
                       child: IgnorePointer(
-                        child: RepaintBoundary(
-                          child: AnimatedBuilder(
-                            animation: _loopController,
-                            builder: (context, _) {
-                              final breathe =
-                                  math.sin(_loopController.value * 2 * math.pi) * 0.5 + 0.5;
-                              return DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: RadialGradient(
-                                    center: const Alignment(0, -0.08),
-                                    radius: 0.48 + (breathe * 0.08),
-                                    colors: isDark
-                                        ? [
-                                            AppColors.gold
-                                                .withValues(alpha: 0.05 + breathe * 0.03),
-                                            Colors.transparent,
-                                          ]
-                                        : [
-                                            AppColors.emeraldGreen
-                                                .withValues(alpha: 0.04 + breathe * 0.02),
-                                            Colors.transparent,
-                                          ],
-                                  ),
-                                ),
-                              );
-                            },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(0, -0.08),
+                              radius: 0.52,
+                              colors: isDark
+                                  ? [
+                                      AppColors.gold.withValues(alpha: 0.065),
+                                      Colors.transparent,
+                                    ]
+                                  : [
+                                      AppColors.emeraldGreen.withValues(alpha: 0.05),
+                                      Colors.transparent,
+                                    ],
+                            ),
                           ),
                         ),
                       ),
@@ -568,7 +552,8 @@ class _ParticlePainter extends CustomPainter {
   final List<_FloatingParticle> particles;
   final double progress;
   final Color color;
-  _ParticlePainter({required this.particles, required this.progress, required this.color});
+  final double intensity;
+  _ParticlePainter({required this.particles, required this.progress, required this.color, required this.intensity});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -577,7 +562,7 @@ class _ParticlePainter extends CustomPainter {
       final y = (p.startY - progress * p.speed) % 1.0;
       final x = p.x + math.sin(progress * 2 * math.pi + p.phase) * 0.015;
       final edgeFade = y < 0.1 ? y / 0.1 : (y > 0.9 ? (1.0 - y) / 0.1 : 1.0);
-      paint.color = color.withValues(alpha: p.opacity * edgeFade);
+      paint.color = color.withValues(alpha: p.opacity * edgeFade * intensity);
       canvas.drawCircle(Offset(x * size.width, y * size.height), p.size, paint);
     }
   }
