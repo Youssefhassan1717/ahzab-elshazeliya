@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/arabic_normalizer.dart';
+import '../../../core/kashida.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/bookmarks_provider.dart';
 
@@ -10,6 +11,10 @@ class ContentBody extends StatelessWidget {
 
   /// Splits blank-line separated blocks into individually framed du'as.
   final bool separateParagraphs;
+
+  /// While a pinch is in flight the kashida pass is skipped — it is too heavy
+  /// to redo on every frame.
+  final bool isScaling;
   final double fontSize;
   final bool isDark;
   final String searchQuery;
@@ -29,6 +34,7 @@ class ContentBody extends StatelessWidget {
     required this.content,
     this.title = '',
     this.separateParagraphs = false,
+    this.isScaling = false,
     required this.fontSize,
     required this.isDark,
     this.searchQuery = '',
@@ -500,7 +506,7 @@ class ContentBody extends StatelessWidget {
         .replaceAll(_doubleNewlinePattern, '\n')
         .replaceAll(_multiSpacePattern, ' ')
         .trim();
-    final (text, emphasis) = _extractEmphasis(cleaned);
+    final (source, sourceEmphasis) = _extractEmphasis(cleaned);
 
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
@@ -510,6 +516,49 @@ class ContentBody extends StatelessWidget {
       fontWeight: FontWeight.w400,
       letterSpacing: fontSize > 24 ? 0.0 : 0.1,
     );
+
+    // On dark backgrounds a heavier weight alone reads as blur, so brighten too.
+    final emphasisStyle = TextStyle(
+      fontWeight: isDark ? FontWeight.w700 : FontWeight.w600,
+      color: isDark ? Colors.white : null,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final kashida = (isScaling || !width.isFinite)
+            ? KashidaJustifier.identity(source)
+            : KashidaJustifier.resolve(
+                source,
+                baseStyle,
+                width,
+                heavyRanges: sourceEmphasis,
+                heavyStyle: baseStyle.merge(emphasisStyle),
+              );
+        return _buildStyledText(
+          kashida,
+          sourceEmphasis,
+          baseStyle,
+          emphasisStyle,
+          searchMatchOffset,
+          chunkIdx,
+        );
+      },
+    );
+  }
+
+  Widget _buildStyledText(
+    KashidaText kashida,
+    List<(int, int)> sourceEmphasis,
+    TextStyle baseStyle,
+    TextStyle emphasisStyle,
+    int searchMatchOffset,
+    int chunkIdx,
+  ) {
+    final text = kashida.text;
+    final emphasis = sourceEmphasis
+        .map((r) => (kashida.mapIndex(r.$1), kashida.mapIndex(r.$2)))
+        .toList();
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
 
@@ -532,8 +581,8 @@ class ContentBody extends StatelessWidget {
 
     // Flash highlight — direct index, NO text searching
     if (flashChunkIndex == chunkIdx && flashLocalStart != null && flashLocalEnd != null && highlightOpacity > 0) {
-      final s = flashLocalStart!.clamp(0, text.length);
-      final e = flashLocalEnd!.clamp(s, text.length);
+      final s = kashida.mapIndex(flashLocalStart!).clamp(0, text.length);
+      final e = kashida.mapIndex(flashLocalEnd!).clamp(s, text.length);
       if (e > s) {
         allRanges.add(_HighlightRange(s, e, _HighlightType.flash));
       }
@@ -541,8 +590,8 @@ class ContentBody extends StatelessWidget {
 
     // Active bookmark highlight — the bookmark we just navigated to
     if (activeBookmarkChunkIndex == chunkIdx && activeBookmarkLocalStart != null && activeBookmarkLocalEnd != null) {
-      final s = activeBookmarkLocalStart!.clamp(0, text.length);
-      final e = activeBookmarkLocalEnd!.clamp(s, text.length);
+      final s = kashida.mapIndex(activeBookmarkLocalStart!).clamp(0, text.length);
+      final e = kashida.mapIndex(activeBookmarkLocalEnd!).clamp(s, text.length);
       if (e > s) {
         allRanges.add(_HighlightRange(s, e, _HighlightType.activeBookmark));
       }
@@ -557,16 +606,16 @@ class ContentBody extends StatelessWidget {
             activeBookmarkLocalEnd == bookmark.localEnd) {
           continue;
         }
-        final s = bookmark.localStart.clamp(0, text.length);
-        final e = bookmark.localEnd.clamp(s, text.length);
+        final s = kashida.mapIndex(bookmark.localStart).clamp(0, text.length);
+        final e = kashida.mapIndex(bookmark.localEnd).clamp(s, text.length);
         if (e > s) {
           allRanges.add(_HighlightRange(s, e, _HighlightType.bookmark));
         }
       }
     }
 
-    // At large font sizes, justify creates ugly gaps between words
-    final textAlign = fontSize > 26 ? TextAlign.right : TextAlign.justify;
+    // Kashida already fills each line; justify only absorbs the leftover pixels.
+    const textAlign = TextAlign.justify;
 
     if (allRanges.isEmpty && emphasis.isEmpty) {
       return Text(text, style: baseStyle, textAlign: textAlign, softWrap: true);
@@ -582,12 +631,6 @@ class ContentBody extends StatelessWidget {
     // Build spans, resolving overlaps by priority
     final spans = <TextSpan>[];
     int cursor = 0;
-
-    // On dark backgrounds a heavier weight alone reads as blur, so brighten too.
-    final emphasisStyle = TextStyle(
-      fontWeight: isDark ? FontWeight.w700 : FontWeight.w600,
-      color: isDark ? Colors.white : null,
-    );
 
     // Emits a slice, splitting it so emphasised parts stand out.
     void addSpan(int start, int end, TextStyle? style) {

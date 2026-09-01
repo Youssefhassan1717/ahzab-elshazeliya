@@ -373,6 +373,7 @@ class _DetailScreenState extends State<DetailScreen>
                     content: widget.part.content,
                     title: widget.part.title,
                     separateParagraphs: widget.part.id == 'ad3eya',
+                    isScaling: _isScaling,
                     fontSize: fontSize,
                     isDark: isDark,
                     searchQuery: widget.searchQuery,
