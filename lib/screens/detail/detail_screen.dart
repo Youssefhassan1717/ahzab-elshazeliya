@@ -25,16 +25,22 @@ class DetailScreen extends StatefulWidget {
 
 class _DetailScreenState extends State<DetailScreen>
     with TickerProviderStateMixin {
-  static const double _baseFontSize = 20.0;
+  /// Reading size is tuned for a 411dp-wide phone and grows with the screen.
+  static const double _referenceWidth = 411.0;
+  static const double _referenceFontSize = 20.0;
   static const double _minFontSize = 10.0;
   static const double _maxFontSize = 44.0;
 
+  double _baseFontSize = _referenceFontSize;
+  bool _baseFontResolved = false;
+
   // Zoom state — raw pointer driven
-  final ValueNotifier<double> _fontSizeNotifier = ValueNotifier(_baseFontSize);
-  double _fontSize = _baseFontSize;
+  final ValueNotifier<double> _fontSizeNotifier =
+      ValueNotifier(_referenceFontSize);
+  double _fontSize = _referenceFontSize;
   final Map<int, Offset> _pointers = {}; // active pointer positions
   double _initialDistance = 0.0; // finger distance at pinch start
-  double _fontSizeAtPinchStart = _baseFontSize; // fontSize when pinch began
+  double _fontSizeAtPinchStart = _referenceFontSize; // fontSize when pinch began
   int _lastSmoothTime = 0; // microsecond timestamp for time-based smoothing
   static const double _smoothK = 12.0; // smoothing stiffness
   bool _isScaling = false;
@@ -109,6 +115,19 @@ class _DetailScreenState extends State<DetailScreen>
         });
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_baseFontResolved) return;
+    _baseFontResolved = true;
+    final width = MediaQuery.sizeOf(context).width;
+    _baseFontSize = (_referenceFontSize * width / _referenceWidth)
+        .clamp(_referenceFontSize, 30.0);
+    _fontSize = _baseFontSize;
+    _fontSizeAtPinchStart = _baseFontSize;
+    _fontSizeNotifier.value = _baseFontSize;
   }
 
   /// Cleans content the same way _buildBodyText does for consistent position mapping.
