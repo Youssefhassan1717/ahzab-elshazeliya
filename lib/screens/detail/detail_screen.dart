@@ -834,7 +834,24 @@ class _DetailScreenState extends State<DetailScreen>
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Spacer(),
+                            Expanded(
+                              child: Text(
+                                widget.part.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontFamily: 'Amiri',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.2,
+                                  color: isDark
+                                      ? AppColors.gold
+                                      : AppColors.emeraldGreen,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             _buildBookmarkAction(isDark),
                             const SizedBox(width: 4),
                             _buildFavoriteAction(isDark),

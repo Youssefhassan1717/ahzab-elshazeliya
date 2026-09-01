@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/arabic_normalizer.dart';
 import '../../../core/theme/app_colors.dart';
@@ -44,149 +44,15 @@ class ContentBody extends StatelessWidget {
     this.chunkKeys = const {},
   });
 
-  /// Check if this content has multiple sections (sub-ahzab)
-  bool get _hasMultipleSections {
-    final matches = _sectionPattern.allMatches(content);
-    return matches.length > 1;
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Multi-section content: skip outer frame, each section has its own inner frame
-    if (_hasMultipleSections) {
-      return content.isNotEmpty ? _buildContent() : _buildEmptyState();
-    }
-
-    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
-    final accentSoft = accent.withValues(alpha: isDark ? 0.18 : 0.12);
-    final accentFaint = accent.withValues(alpha: isDark ? 0.08 : 0.05);
-
-    return Container(
-      // Outer frame
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
-          width: 1,
-        ),
-        boxShadow: [
-          // Soft depth shadow
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-          // Subtle inner glow
-          BoxShadow(
-            color: accent.withValues(alpha: isDark ? 0.04 : 0.02),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-        ],
+    if (content.isEmpty) return _buildEmptyState();
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: fontSize > 24 ? 8.0 : 14.0,
+        vertical: 8,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(19),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkSurface
-                : AppColors.lightSurface,
-          ),
-          child: Stack(
-            children: [
-              // Subtle radial glow at top
-              Positioned(
-                top: -60,
-                left: 0,
-                right: 0,
-                height: 200,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.topCenter,
-                      radius: 1.2,
-                      colors: [
-                        accent.withValues(alpha: isDark ? 0.06 : 0.03),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Left side ornamental border
-              Positioned(
-                top: 0,
-                bottom: 0,
-                left: 0,
-                child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
-              ),
-              // Right side ornamental border
-              Positioned(
-                top: 0,
-                bottom: 0,
-                right: 0,
-                child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
-              ),
-
-              // Corner ornaments
-              for (final corner in _Corner.values)
-                Positioned(
-                  top: corner.isTop ? 0 : null,
-                  bottom: corner.isTop ? null : 0,
-                  left: corner.isLeft ? 0 : null,
-                  right: corner.isLeft ? null : 0,
-                  child: RepaintBoundary(
-                    child: SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: CustomPaint(
-                        painter: _CornerPainter(
-                          color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
-                          corner: corner,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Main content column
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top ornamental band — carries the hizb name
-                  _ornamentalBand(accent, accentSoft, accentFaint, label: title),
-
-                  // Inner frame with content
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      border: Border.symmetric(
-                        vertical: BorderSide(
-                          color: accentFaint,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: fontSize > 24 ? 4.0 : 10.0,
-                        vertical: 24,
-                      ),
-                      child: content.isNotEmpty
-                          ? _buildContent()
-                          : _buildEmptyState(),
-                    ),
-                  ),
-
-                  // Bottom ornamental band
-                  _ornamentalBand(accent, accentSoft, accentFaint),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: _buildContent(),
     );
   }
 
