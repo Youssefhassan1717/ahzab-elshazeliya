@@ -84,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'المقدمة',
               onPressed: () {
                 HapticFeedback.lightImpact();
+                FocusManager.instance.primaryFocus?.unfocus();
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const AboutScreen()),
                 );

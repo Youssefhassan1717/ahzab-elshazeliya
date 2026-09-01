@@ -385,6 +385,8 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
 
   void _navigateToDetail(BuildContext context) {
     HapticFeedback.lightImpact();
+    // Otherwise the search field regains focus on pop and reopens the keyboard.
+    FocusManager.instance.primaryFocus?.unfocus();
     Navigator.of(context).push(
       _SwipeBackPageRoute(
         builder: (_) => DetailScreen(
