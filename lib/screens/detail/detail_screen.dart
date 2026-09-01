@@ -25,9 +25,9 @@ class DetailScreen extends StatefulWidget {
 
 class _DetailScreenState extends State<DetailScreen>
     with TickerProviderStateMixin {
-  /// Reading size is tuned for a 411dp-wide phone and grows with the screen.
+  /// Reading size is tuned for a 411dp-wide phone and scales with the screen.
   static const double _referenceWidth = 411.0;
-  static const double _referenceFontSize = 20.0;
+  static const double _referenceFontSize = 22.0;
   static const double _minFontSize = 10.0;
   static const double _maxFontSize = 44.0;
 
@@ -123,8 +123,8 @@ class _DetailScreenState extends State<DetailScreen>
     if (_baseFontResolved) return;
     _baseFontResolved = true;
     final width = MediaQuery.sizeOf(context).width;
-    _baseFontSize = (_referenceFontSize * width / _referenceWidth)
-        .clamp(_referenceFontSize, 30.0);
+    _baseFontSize =
+        (_referenceFontSize * width / _referenceWidth).clamp(20.0, 32.0);
     _fontSize = _baseFontSize;
     _fontSizeAtPinchStart = _baseFontSize;
     _fontSizeNotifier.value = _baseFontSize;
