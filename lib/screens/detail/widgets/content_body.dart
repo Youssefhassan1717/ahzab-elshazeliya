@@ -565,8 +565,9 @@ class ContentBody extends StatelessWidget {
       }
     }
 
-    // At large font sizes, justify creates ugly gaps between words
-    final textAlign = fontSize > 26 ? TextAlign.right : TextAlign.justify;
+    // Justify stretches the spaces of any line that can't fit the next word,
+    // which looks broken in Arabic — keep the ragged left edge instead.
+    const textAlign = TextAlign.right;
 
     if (allRanges.isEmpty && emphasis.isEmpty) {
       return Text(text, style: baseStyle, textAlign: textAlign, softWrap: true);
