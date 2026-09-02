@@ -9,8 +9,13 @@ class ContentBody extends StatelessWidget {
   final String content;
   final String title;
 
+  static const String mushafFont = 'UthmanicHafs';
+
   /// Splits blank-line separated blocks into individually framed du'as.
   final bool separateParagraphs;
+
+  /// Set to [mushafFont] to typeset the whole hizb in the Qur'anic face.
+  final String bodyFontFamily;
 
   /// While a pinch is in flight the kashida pass is skipped — it is too heavy
   /// to redo on every frame.
@@ -34,6 +39,7 @@ class ContentBody extends StatelessWidget {
     required this.content,
     this.title = '',
     this.separateParagraphs = false,
+    this.bodyFontFamily = 'ScheherazadeNew',
     this.isScaling = false,
     required this.fontSize,
     required this.isDark,
@@ -531,6 +537,12 @@ class ContentBody extends StatelessWidget {
   /// Resolves the markup exactly as the body does, for index-space parity.
   static String stripMarkup(String raw) => _parseMarkup(raw).text;
 
+  bool get _isMushaf => bodyFontFamily == mushafFont;
+
+  /// The mushaf face has a larger optical size, so it is set slightly smaller.
+  double get _bodySize => _isMushaf ? fontSize * 0.95 : fontSize;
+  double get _bodyHeight => _isMushaf ? 2.15 : 1.9;
+
   Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
     // Collapse multiple blank lines into one newline, collapse multiple spaces,
     // but preserve single newlines so the text shows proper line breaks.
@@ -543,12 +555,12 @@ class ContentBody extends StatelessWidget {
     final source = markup.text;
 
     final baseStyle = TextStyle(
-      fontFamily: 'ScheherazadeNew',
-      fontSize: fontSize,
-      height: 1.9,
+      fontFamily: bodyFontFamily,
+      fontSize: _bodySize,
+      height: _bodyHeight,
       color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
       fontWeight: FontWeight.w400,
-      letterSpacing: fontSize > 24 ? 0.0 : 0.1,
+      letterSpacing: _isMushaf || fontSize > 24 ? 0.0 : 0.1,
     );
 
     // On dark backgrounds a heavier weight alone reads as blur, so brighten too.
@@ -599,7 +611,7 @@ class ContentBody extends StatelessWidget {
     if (verses.isEmpty && emphasis.isEmpty) return const [];
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
-      fontFamily: 'UthmanicHafs',
+      fontFamily: mushafFont,
       fontSize: fontSize * 0.95,
       height: 2.15,
       fontWeight: FontWeight.w400,
