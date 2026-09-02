@@ -473,30 +473,54 @@ class ContentBody extends StatelessWidget {
   /// Text wrapped in a pair of `§B§` markers is rendered semi-bold.
   static const String boldMarker = '§B§';
 
-  /// Removes the bold markers and returns the ranges they enclosed.
-  static (String, List<(int, int)>) _extractEmphasis(String src) {
-    if (!src.contains(boldMarker)) return (src, const []);
+  /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
+  static final _quranPattern = RegExp(r'§Q§(.+?)\|(.+?)§Q§', dotAll: true);
+
+  /// Strips the markers and reports what each one covered in the output text.
+  static _Markup _parseMarkup(String src) {
+    if (!src.contains('§')) {
+      return _Markup(src, const [], const [], const []);
+    }
     final buf = StringBuffer();
-    final ranges = <(int, int)>[];
+    final emphasis = <(int, int)>[];
+    final verses = <(int, int)>[];
+    final refs = <(int, int)>[];
     int? open;
-    for (int i = 0; i < src.length;) {
+    int i = 0;
+    while (i < src.length) {
       if (src.startsWith(boldMarker, i)) {
         if (open == null) {
           open = buf.length;
         } else {
-          if (buf.length > open) ranges.add((open, buf.length));
+          if (buf.length > open) emphasis.add((open, buf.length));
           open = null;
         }
         i += boldMarker.length;
-      } else {
-        buf.write(src[i]);
-        i++;
+        continue;
       }
+      if (src.startsWith('§Q§', i)) {
+        final m = _quranPattern.matchAsPrefix(src, i);
+        if (m != null) {
+          final verseStart = buf.length;
+          buf.write('\uFD3F ${m.group(2)!.trim()} \uFD3E');
+          verses.add((verseStart, buf.length));
+          final refStart = buf.length;
+          buf.write(' [${m.group(1)!.trim()}]');
+          refs.add((refStart, buf.length));
+          i = m.end;
+          continue;
+        }
+      }
+      buf.write(src[i]);
+      i++;
     }
     final out = buf.toString();
-    if (open != null && out.length > open) ranges.add((open, out.length));
-    return (out, ranges);
+    if (open != null && out.length > open) emphasis.add((open, out.length));
+    return _Markup(out, emphasis, verses, refs);
   }
+
+  /// Resolves the markup exactly as the body does, for index-space parity.
+  static String stripMarkup(String raw) => _parseMarkup(raw).text;
 
   Widget _buildBodyText(String rawText, int searchMatchOffset, int chunkIdx) {
     // Collapse multiple blank lines into one newline, collapse multiple spaces,
@@ -506,7 +530,8 @@ class ContentBody extends StatelessWidget {
         .replaceAll(_doubleNewlinePattern, '\n')
         .replaceAll(_multiSpacePattern, ' ')
         .trim();
-    final (source, sourceEmphasis) = _extractEmphasis(cleaned);
+    final markup = _parseMarkup(cleaned);
+    final source = markup.text;
 
     final baseStyle = TextStyle(
       fontFamily: 'ScheherazadeNew',
@@ -532,12 +557,14 @@ class ContentBody extends StatelessWidget {
                 source,
                 baseStyle,
                 width,
-                heavyRanges: sourceEmphasis,
+                heavyRanges: markup.emphasis,
                 heavyStyle: baseStyle.merge(emphasisStyle),
+                // The mushaf face measures differently, so leave those lines be.
+                skipRanges: [...markup.verses, ...markup.refs],
               );
         return _buildStyledText(
           kashida,
-          sourceEmphasis,
+          markup,
           baseStyle,
           emphasisStyle,
           searchMatchOffset,
@@ -547,18 +574,72 @@ class ContentBody extends StatelessWidget {
     );
   }
 
+  /// Merges the mushaf, reference and bold ranges into one non-overlapping,
+  /// ordered list. A Qur'anic run always wins over bold.
+  List<_Overlay> _buildOverlays({
+    required List<(int, int)> verses,
+    required List<(int, int)> refs,
+    required List<(int, int)> emphasis,
+    required TextStyle emphasisStyle,
+  }) {
+    if (verses.isEmpty && refs.isEmpty && emphasis.isEmpty) return const [];
+    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
+    final verseStyle = TextStyle(
+      fontFamily: 'UthmanicHafs',
+      fontSize: fontSize * 0.92,
+      height: 2.1,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    );
+    final refStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: fontSize * 0.62,
+      fontWeight: FontWeight.w700,
+      color: accent,
+      letterSpacing: 0,
+    );
+
+    final out = <_Overlay>[];
+    for (final (s, e) in verses) {
+      out.add(_Overlay(s, e, verseStyle));
+    }
+    for (final (s, e) in refs) {
+      out.add(_Overlay(s, e, refStyle));
+    }
+    final taken = [...verses, ...refs]..sort((a, b) => a.$1.compareTo(b.$1));
+    for (final (s, e) in emphasis) {
+      var cur = s;
+      for (final (ts, te) in taken) {
+        if (te <= cur || ts >= e) continue;
+        if (ts > cur) out.add(_Overlay(cur, ts, emphasisStyle));
+        cur = math.max(cur, te);
+      }
+      if (cur < e) out.add(_Overlay(cur, e, emphasisStyle));
+    }
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
   Widget _buildStyledText(
     KashidaText kashida,
-    List<(int, int)> sourceEmphasis,
+    _Markup markup,
     TextStyle baseStyle,
     TextStyle emphasisStyle,
     int searchMatchOffset,
     int chunkIdx,
   ) {
     final text = kashida.text;
-    final emphasis = sourceEmphasis
+    List<(int, int)> remap(List<(int, int)> src) => src
         .map((r) => (kashida.mapIndex(r.$1), kashida.mapIndex(r.$2)))
         .toList();
+    final verses = remap(markup.verses);
+    final refs = remap(markup.refs);
+    final overlays = _buildOverlays(
+      verses: verses,
+      refs: refs,
+      emphasis: remap(markup.emphasis),
+      emphasisStyle: emphasisStyle,
+    );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
 
@@ -617,7 +698,7 @@ class ContentBody extends StatelessWidget {
     // Kashida already fills each line; justify only absorbs the leftover pixels.
     const textAlign = TextAlign.justify;
 
-    if (allRanges.isEmpty && emphasis.isEmpty) {
+    if (allRanges.isEmpty && overlays.isEmpty) {
       return Text(text, style: baseStyle, textAlign: textAlign, softWrap: true);
     }
 
@@ -632,24 +713,22 @@ class ContentBody extends StatelessWidget {
     final spans = <TextSpan>[];
     int cursor = 0;
 
-    // Emits a slice, splitting it so emphasised parts stand out.
+    // Emits a slice, splitting it wherever a font/weight overlay applies.
     void addSpan(int start, int end, TextStyle? style) {
       if (end <= start) return;
       int cur = start;
-      for (final (es, ee) in emphasis) {
-        if (ee <= cur || es >= end) continue;
-        if (es > cur) {
-          spans.add(TextSpan(text: text.substring(cur, es), style: style));
+      for (final overlay in overlays) {
+        if (overlay.end <= cur || overlay.start >= end) continue;
+        if (overlay.start > cur) {
+          spans.add(TextSpan(text: text.substring(cur, overlay.start), style: style));
         }
-        final s = math.max(es, cur);
-        final e = math.min(ee, end);
+        final s = math.max(overlay.start, cur);
+        final e = math.min(overlay.end, end);
+        var applied = overlay.style;
+        if (style?.color != null) applied = applied.copyWith(color: style!.color);
         spans.add(TextSpan(
           text: text.substring(s, e),
-          style: (style ?? const TextStyle()).merge(
-            style?.color != null
-                ? emphasisStyle.copyWith(color: style!.color)
-                : emphasisStyle,
-          ),
+          style: (style ?? const TextStyle()).merge(applied),
         ));
         cur = e;
       }
@@ -1007,6 +1086,21 @@ class _SideBorderPainter extends CustomPainter {
 
 // Highlight types ordered by priority (lowest index = highest priority)
 enum _HighlightType { searchActive, search, flash, activeBookmark, bookmark }
+
+class _Overlay {
+  final int start;
+  final int end;
+  final TextStyle style;
+  const _Overlay(this.start, this.end, this.style);
+}
+
+class _Markup {
+  final String text;
+  final List<(int, int)> emphasis;
+  final List<(int, int)> verses;
+  final List<(int, int)> refs;
+  const _Markup(this.text, this.emphasis, this.verses, this.refs);
+}
 
 class _HighlightRange {
   final int start;

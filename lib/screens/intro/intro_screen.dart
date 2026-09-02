@@ -486,8 +486,21 @@ class _IntroScreenState extends State<IntroScreen>
       opacity: fade,
       child: AnimatedBuilder(
         animation: widthFraction,
-        builder: (context, child) =>
-            SizedBox(width: 240 * widthFraction.value, child: child),
+        // Reveal a fixed-width rule instead of squeezing it, which overflows.
+        builder: (context, child) => SizedBox(
+          height: 20,
+          width: 240 * widthFraction.value,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.center,
+              minWidth: 240,
+              maxWidth: 240,
+              minHeight: 20,
+              maxHeight: 20,
+              child: child,
+            ),
+          ),
+        ),
         child: Row(children: [
           Expanded(
               child: Container(

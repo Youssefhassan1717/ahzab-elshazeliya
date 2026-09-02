@@ -137,9 +137,8 @@ class _DetailScreenState extends State<DetailScreen>
   static final _multiSpacePattern = RegExp(r' {2,}');
 
   String _cleanContent(String raw) {
-    return raw
+    return ContentBody.stripMarkup(raw)
         .replaceAll(_sectionCleanPattern, ' ')
-        .replaceAll(ContentBody.boldMarker, '')
         .replaceAll(_multiNewlinePattern, '\n')
         .replaceAll(_doubleNewlinePattern, '\n')
         .replaceAll(_multiSpacePattern, ' ')
@@ -165,8 +164,7 @@ class _DetailScreenState extends State<DetailScreen>
 
   /// Cleans a chunk the same way _buildBodyText does.
   static String _cleanChunk(String raw) {
-    return raw
-        .replaceAll(ContentBody.boldMarker, '')
+    return ContentBody.stripMarkup(raw)
         .replaceAll(_multiNewlinePattern, '\n')
         .replaceAll(_doubleNewlinePattern, '\n')
         .replaceAll(_multiSpacePattern, ' ')

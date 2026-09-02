@@ -39,12 +39,14 @@ class KashidaJustifier {
 
   /// [heavyStyle] is used to measure lines that overlap [heavyRanges], so a
   /// bolder run cannot overflow the column after the tatweels are added.
+  /// Lines touching [skipRanges] are left alone — they carry another font.
   static KashidaText resolve(
     String source,
     TextStyle style,
     double maxWidth, {
     List<(int, int)> heavyRanges = const [],
     TextStyle? heavyStyle,
+    List<(int, int)> skipRanges = const [],
   }) {
     if (source.length < 40 || maxWidth <= 60) return identity(source);
     final key = _Key(source, style.fontSize ?? 0, style.fontFamily ?? '',
@@ -54,7 +56,8 @@ class KashidaJustifier {
       _cache[key] = cached;
       return cached;
     }
-    final built = _build(source, style, maxWidth, heavyRanges, heavyStyle);
+    final built =
+        _build(source, style, maxWidth, heavyRanges, heavyStyle, skipRanges);
     _cache[key] = built;
     if (_cache.length > _cacheLimit) _cache.remove(_cache.keys.first);
     return built;
@@ -68,6 +71,7 @@ class KashidaJustifier {
     double maxWidth,
     List<(int, int)> heavyRanges,
     TextStyle? heavyStyle,
+    List<(int, int)> skipRanges,
   ) {
     final target = maxWidth - 4.0;
     if (target <= 0) return identity(source);
@@ -104,9 +108,10 @@ class KashidaJustifier {
         end--;
       }
       if (end - start < 8) continue;
+      if (_overlaps(skipRanges, start, end)) continue;
 
       final measureStyle =
-          heavyStyle != null && _overlapsHeavy(heavyRanges, start, end)
+          heavyStyle != null && _overlaps(heavyRanges, start, end)
               ? heavyStyle
               : style;
 
@@ -158,7 +163,7 @@ class KashidaJustifier {
     return KashidaText(buffer.toString(), offsets);
   }
 
-  static bool _overlapsHeavy(List<(int, int)> ranges, int start, int end) {
+  static bool _overlaps(List<(int, int)> ranges, int start, int end) {
     for (final (s, e) in ranges) {
       if (s < end && e > start) return true;
     }
