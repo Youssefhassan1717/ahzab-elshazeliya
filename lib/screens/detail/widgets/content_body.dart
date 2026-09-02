@@ -476,7 +476,8 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Text wrapped in a pair of `§B§` markers is rendered semi-bold.
+  /// Text wrapped in a pair of `§B§` markers gets ornate framing brackets —
+  /// it marks a passage the hizb asks you to repeat.
   static const String boldMarker = '§B§';
 
   /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
@@ -485,23 +486,21 @@ class ContentBody extends StatelessWidget {
   /// Strips the markers and reports what each one covered in the output text.
   static _Markup _parseMarkup(String src) {
     if (!src.contains('§')) {
-      return _Markup(src, const [], const [], const [], const []);
+      return _Markup.empty(src);
     }
     final buf = StringBuffer();
-    final emphasis = <(int, int)>[];
     final verses = <(int, int)>[];
     final refs = <(int, int)>[];
     final brackets = <(int, int)>[];
-    int? open;
+    final frames = <(int, int)>[];
+    bool open = false;
     int i = 0;
     while (i < src.length) {
       if (src.startsWith(boldMarker, i)) {
-        if (open == null) {
-          open = buf.length;
-        } else {
-          if (buf.length > open) emphasis.add((open, buf.length));
-          open = null;
-        }
+        final start = buf.length;
+        buf.write(open ? ' \uFD3E' : '\uFD3F ');
+        frames.add((start, buf.length));
+        open = !open;
         i += boldMarker.length;
         continue;
       }
@@ -530,8 +529,7 @@ class ContentBody extends StatelessWidget {
       i++;
     }
     final out = buf.toString();
-    if (open != null && out.length > open) emphasis.add((open, out.length));
-    return _Markup(out, emphasis, verses, refs, brackets);
+    return _Markup(out, verses, refs, brackets, frames);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -563,12 +561,6 @@ class ContentBody extends StatelessWidget {
       letterSpacing: _isMushaf || fontSize > 24 ? 0.0 : 0.1,
     );
 
-    // On dark backgrounds a heavier weight alone reads as blur, so brighten too.
-    final emphasisStyle = TextStyle(
-      fontWeight: isDark ? FontWeight.w700 : FontWeight.w600,
-      color: isDark ? Colors.white : null,
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -578,20 +570,19 @@ class ContentBody extends StatelessWidget {
                 source,
                 baseStyle,
                 width,
-                heavyRanges: markup.emphasis,
-                heavyStyle: baseStyle.merge(emphasisStyle),
-                // The mushaf face measures differently, so leave those lines be.
+                // The mushaf face and the ornaments measure differently, so
+                // leave those lines out of the kashida pass.
                 skipRanges: [
                   ...markup.verses,
                   ...markup.refs,
                   ...markup.brackets,
+                  ...markup.frames,
                 ],
               );
         return _buildStyledText(
           kashida,
           markup,
           baseStyle,
-          emphasisStyle,
           searchMatchOffset,
           chunkIdx,
         );
@@ -599,16 +590,15 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Merges the mushaf, bracket, reference and bold ranges into one
-  /// non-overlapping, ordered list. A Qur'anic run always wins over bold.
+  /// Merges the mushaf, bracket and reference ranges into one
+  /// non-overlapping, ordered list.
   List<_Overlay> _buildOverlays({
     required List<(int, int)> verses,
     required List<(int, int)> refs,
     required List<(int, int)> brackets,
-    required List<(int, int)> emphasis,
-    required TextStyle emphasisStyle,
+    required List<(int, int)> frames,
   }) {
-    if (verses.isEmpty && emphasis.isEmpty) return const [];
+    if (verses.isEmpty && frames.isEmpty) return const [];
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
       fontFamily: mushafFont,
@@ -625,6 +615,13 @@ class ContentBody extends StatelessWidget {
       color: accent,
       letterSpacing: 0,
     );
+    final frameStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: fontSize * 1.7,
+      height: 2.15,
+      color: accent,
+      letterSpacing: 0,
+    );
     final refStyle = TextStyle(
       fontFamily: 'Amiri',
       fontSize: fontSize * 0.6,
@@ -635,46 +632,26 @@ class ContentBody extends StatelessWidget {
     );
 
     final out = <_Overlay>[];
-    // A verse inside a bold run is part of what gets repeated, so it bolds too.
     for (final (s, e) in verses) {
-      final style = _overlapsAny(emphasis, s, e)
-          ? verseStyle.merge(emphasisStyle)
-          : verseStyle;
-      out.add(_Overlay(s, e, style));
+      out.add(_Overlay(s, e, verseStyle));
     }
     for (final (s, e) in brackets) {
       out.add(_Overlay(s, e, bracketStyle));
     }
+    for (final (s, e) in frames) {
+      out.add(_Overlay(s, e, frameStyle));
+    }
     for (final (s, e) in refs) {
       out.add(_Overlay(s, e, refStyle));
     }
-    final taken = [...verses, ...brackets, ...refs]
-      ..sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (s, e) in emphasis) {
-      var cur = s;
-      for (final (ts, te) in taken) {
-        if (te <= cur || ts >= e) continue;
-        if (ts > cur) out.add(_Overlay(cur, ts, emphasisStyle));
-        cur = math.max(cur, te);
-      }
-      if (cur < e) out.add(_Overlay(cur, e, emphasisStyle));
-    }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;
-  }
-
-  static bool _overlapsAny(List<(int, int)> ranges, int start, int end) {
-    for (final (s, e) in ranges) {
-      if (s < end && e > start) return true;
-    }
-    return false;
   }
 
   Widget _buildStyledText(
     KashidaText kashida,
     _Markup markup,
     TextStyle baseStyle,
-    TextStyle emphasisStyle,
     int searchMatchOffset,
     int chunkIdx,
   ) {
@@ -682,14 +659,11 @@ class ContentBody extends StatelessWidget {
     List<(int, int)> remap(List<(int, int)> src) => src
         .map((r) => (kashida.mapIndex(r.$1), kashida.mapIndex(r.$2)))
         .toList();
-    final verses = remap(markup.verses);
-    final refs = remap(markup.refs);
     final overlays = _buildOverlays(
-      verses: verses,
-      refs: refs,
+      verses: remap(markup.verses),
+      refs: remap(markup.refs),
       brackets: remap(markup.brackets),
-      emphasis: remap(markup.emphasis),
-      emphasisStyle: emphasisStyle,
+      frames: remap(markup.frames),
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -1147,12 +1121,21 @@ class _Overlay {
 
 class _Markup {
   final String text;
-  final List<(int, int)> emphasis;
   final List<(int, int)> verses;
   final List<(int, int)> refs;
   final List<(int, int)> brackets;
+
+  /// Ornate brackets framing a passage that is repeated.
+  final List<(int, int)> frames;
+
   const _Markup(
-      this.text, this.emphasis, this.verses, this.refs, this.brackets);
+      this.text, this.verses, this.refs, this.brackets, this.frames);
+
+  const _Markup.empty(this.text)
+      : verses = const [],
+        refs = const [],
+        brackets = const [],
+        frames = const [];
 }
 
 class _HighlightRange {

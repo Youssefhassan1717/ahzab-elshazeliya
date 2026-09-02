@@ -37,15 +37,11 @@ class KashidaJustifier {
 
   static final LinkedHashMap<_Key, KashidaText> _cache = LinkedHashMap();
 
-  /// [heavyStyle] is used to measure lines that overlap [heavyRanges], so a
-  /// bolder run cannot overflow the column after the tatweels are added.
   /// Lines touching [skipRanges] are left alone — they carry another font.
   static KashidaText resolve(
     String source,
     TextStyle style,
     double maxWidth, {
-    List<(int, int)> heavyRanges = const [],
-    TextStyle? heavyStyle,
     List<(int, int)> skipRanges = const [],
   }) {
     if (source.length < 40 || maxWidth <= 60) return identity(source);
@@ -56,8 +52,7 @@ class KashidaJustifier {
       _cache[key] = cached;
       return cached;
     }
-    final built =
-        _build(source, style, maxWidth, heavyRanges, heavyStyle, skipRanges);
+    final built = _build(source, style, maxWidth, skipRanges);
     _cache[key] = built;
     if (_cache.length > _cacheLimit) _cache.remove(_cache.keys.first);
     return built;
@@ -69,8 +64,6 @@ class KashidaJustifier {
     String source,
     TextStyle style,
     double maxWidth,
-    List<(int, int)> heavyRanges,
-    TextStyle? heavyStyle,
     List<(int, int)> skipRanges,
   ) {
     final target = maxWidth - 4.0;
@@ -110,32 +103,27 @@ class KashidaJustifier {
       if (end - start < 8) continue;
       if (_overlaps(skipRanges, start, end)) continue;
 
-      final measureStyle =
-          heavyStyle != null && _overlaps(heavyRanges, start, end)
-              ? heavyStyle
-              : style;
-
       final lineText = source.substring(start, end);
-      final base = _measure(lineText, measureStyle);
+      final base = _measure(lineText, style);
       if (base >= target || base < target * _minFillRatio) continue;
 
       final spots = _spots(source, start, end);
       if (spots.isEmpty) continue;
 
-      final unit = _measure(lineText + tatweel, measureStyle) - base;
+      final unit = _measure(lineText + tatweel, style) - base;
       if (unit <= 0.2) continue;
 
       final cap = spots.length * _maxPerSpot;
       int count = ((target - base) / unit).floor().clamp(0, cap);
       if (count == 0) continue;
 
-      double width = _measure(_apply(lineText, start, spots, count), measureStyle);
+      double width = _measure(_apply(lineText, start, spots, count), style);
       for (int guard = 0; guard < 5 && width > target && count > 0; guard++) {
         count = (count * target / width).floor();
-        width = _measure(_apply(lineText, start, spots, count), measureStyle);
+        width = _measure(_apply(lineText, start, spots, count), style);
       }
       for (int guard = 0; guard < 4 && count < cap; guard++) {
-        final next = _measure(_apply(lineText, start, spots, count + 1), measureStyle);
+        final next = _measure(_apply(lineText, start, spots, count + 1), style);
         if (next > target) break;
         count++;
       }
