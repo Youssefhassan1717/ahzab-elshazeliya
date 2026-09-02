@@ -490,8 +490,6 @@ class ContentBody extends StatelessWidget {
     }
     final buf = StringBuffer();
     final verses = <(int, int)>[];
-    final refs = <(int, int)>[];
-    final brackets = <(int, int)>[];
     final frames = <(int, int)>[];
     bool open = false;
     int i = 0;
@@ -507,20 +505,9 @@ class ContentBody extends StatelessWidget {
       if (src.startsWith('§Q§', i)) {
         final m = _quranPattern.matchAsPrefix(src, i);
         if (m != null) {
-          final openStart = buf.length;
-          buf.write('\uFD3F');
-          brackets.add((openStart, buf.length));
-          buf.write(' ');
           final verseStart = buf.length;
           buf.write(m.group(2)!.trim());
           verses.add((verseStart, buf.length));
-          buf.write(' ');
-          final closeStart = buf.length;
-          buf.write('\uFD3E');
-          brackets.add((closeStart, buf.length));
-          final refStart = buf.length;
-          buf.write(' [${m.group(1)!.trim()}]');
-          refs.add((refStart, buf.length));
           i = m.end;
           continue;
         }
@@ -529,7 +516,7 @@ class ContentBody extends StatelessWidget {
       i++;
     }
     final out = buf.toString();
-    return _Markup(out, verses, refs, brackets, frames);
+    return _Markup(out, verses, frames);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -572,12 +559,7 @@ class ContentBody extends StatelessWidget {
                 width,
                 // The mushaf face and the ornaments measure differently, so
                 // leave those lines out of the kashida pass.
-                skipRanges: [
-                  ...markup.verses,
-                  ...markup.refs,
-                  ...markup.brackets,
-                  ...markup.frames,
-                ],
+                skipRanges: [...markup.verses, ...markup.frames],
               );
         return _buildStyledText(
           kashida,
@@ -590,12 +572,9 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Merges the mushaf, bracket and reference ranges into one
-  /// non-overlapping, ordered list.
+  /// Merges the mushaf and frame ranges into one ordered list.
   List<_Overlay> _buildOverlays({
     required List<(int, int)> verses,
-    required List<(int, int)> refs,
-    required List<(int, int)> brackets,
     required List<(int, int)> frames,
   }) {
     if (verses.isEmpty && frames.isEmpty) return const [];
@@ -608,25 +587,10 @@ class ContentBody extends StatelessWidget {
       letterSpacing: 0,
     );
     // Amiri draws the ornate parentheses properly; the mushaf face does not.
-    final bracketStyle = TextStyle(
-      fontFamily: 'Amiri',
-      fontSize: fontSize * 1.25,
-      height: 2.15,
-      color: accent,
-      letterSpacing: 0,
-    );
     final frameStyle = TextStyle(
       fontFamily: 'Amiri',
-      fontSize: fontSize * 1.7,
+      fontSize: fontSize * 1.1,
       height: 2.15,
-      color: accent,
-      letterSpacing: 0,
-    );
-    final refStyle = TextStyle(
-      fontFamily: 'Amiri',
-      fontSize: fontSize * 0.6,
-      height: 2.15,
-      fontWeight: FontWeight.w700,
       color: accent,
       letterSpacing: 0,
     );
@@ -635,14 +599,8 @@ class ContentBody extends StatelessWidget {
     for (final (s, e) in verses) {
       out.add(_Overlay(s, e, verseStyle));
     }
-    for (final (s, e) in brackets) {
-      out.add(_Overlay(s, e, bracketStyle));
-    }
     for (final (s, e) in frames) {
       out.add(_Overlay(s, e, frameStyle));
-    }
-    for (final (s, e) in refs) {
-      out.add(_Overlay(s, e, refStyle));
     }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;
@@ -661,8 +619,6 @@ class ContentBody extends StatelessWidget {
         .toList();
     final overlays = _buildOverlays(
       verses: remap(markup.verses),
-      refs: remap(markup.refs),
-      brackets: remap(markup.brackets),
       frames: remap(markup.frames),
     );
 
@@ -1122,19 +1078,14 @@ class _Overlay {
 class _Markup {
   final String text;
   final List<(int, int)> verses;
-  final List<(int, int)> refs;
-  final List<(int, int)> brackets;
 
   /// Ornate brackets framing a passage that is repeated.
   final List<(int, int)> frames;
 
-  const _Markup(
-      this.text, this.verses, this.refs, this.brackets, this.frames);
+  const _Markup(this.text, this.verses, this.frames);
 
   const _Markup.empty(this.text)
       : verses = const [],
-        refs = const [],
-        brackets = const [],
         frames = const [];
 }
 
