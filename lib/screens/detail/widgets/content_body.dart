@@ -479,12 +479,13 @@ class ContentBody extends StatelessWidget {
   /// Strips the markers and reports what each one covered in the output text.
   static _Markup _parseMarkup(String src) {
     if (!src.contains('§')) {
-      return _Markup(src, const [], const [], const []);
+      return _Markup(src, const [], const [], const [], const []);
     }
     final buf = StringBuffer();
     final emphasis = <(int, int)>[];
     final verses = <(int, int)>[];
     final refs = <(int, int)>[];
+    final brackets = <(int, int)>[];
     int? open;
     int i = 0;
     while (i < src.length) {
@@ -501,9 +502,17 @@ class ContentBody extends StatelessWidget {
       if (src.startsWith('§Q§', i)) {
         final m = _quranPattern.matchAsPrefix(src, i);
         if (m != null) {
+          final openStart = buf.length;
+          buf.write('\uFD3F');
+          brackets.add((openStart, buf.length));
+          buf.write(' ');
           final verseStart = buf.length;
-          buf.write('\uFD3F ${m.group(2)!.trim()} \uFD3E');
+          buf.write(m.group(2)!.trim());
           verses.add((verseStart, buf.length));
+          buf.write(' ');
+          final closeStart = buf.length;
+          buf.write('\uFD3E');
+          brackets.add((closeStart, buf.length));
           final refStart = buf.length;
           buf.write(' [${m.group(1)!.trim()}]');
           refs.add((refStart, buf.length));
@@ -516,7 +525,7 @@ class ContentBody extends StatelessWidget {
     }
     final out = buf.toString();
     if (open != null && out.length > open) emphasis.add((open, out.length));
-    return _Markup(out, emphasis, verses, refs);
+    return _Markup(out, emphasis, verses, refs, brackets);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -560,7 +569,11 @@ class ContentBody extends StatelessWidget {
                 heavyRanges: markup.emphasis,
                 heavyStyle: baseStyle.merge(emphasisStyle),
                 // The mushaf face measures differently, so leave those lines be.
-                skipRanges: [...markup.verses, ...markup.refs],
+                skipRanges: [
+                  ...markup.verses,
+                  ...markup.refs,
+                  ...markup.brackets,
+                ],
               );
         return _buildStyledText(
           kashida,
@@ -574,26 +587,36 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Merges the mushaf, reference and bold ranges into one non-overlapping,
-  /// ordered list. A Qur'anic run always wins over bold.
+  /// Merges the mushaf, bracket, reference and bold ranges into one
+  /// non-overlapping, ordered list. A Qur'anic run always wins over bold.
   List<_Overlay> _buildOverlays({
     required List<(int, int)> verses,
     required List<(int, int)> refs,
+    required List<(int, int)> brackets,
     required List<(int, int)> emphasis,
     required TextStyle emphasisStyle,
   }) {
-    if (verses.isEmpty && refs.isEmpty && emphasis.isEmpty) return const [];
+    if (verses.isEmpty && emphasis.isEmpty) return const [];
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
       fontFamily: 'UthmanicHafs',
-      fontSize: fontSize * 0.92,
-      height: 2.1,
+      fontSize: fontSize * 0.95,
+      height: 2.15,
       fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    );
+    // Amiri draws the ornate parentheses properly; the mushaf face does not.
+    final bracketStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: fontSize * 1.25,
+      height: 2.15,
+      color: accent,
       letterSpacing: 0,
     );
     final refStyle = TextStyle(
       fontFamily: 'Amiri',
-      fontSize: fontSize * 0.62,
+      fontSize: fontSize * 0.6,
+      height: 2.15,
       fontWeight: FontWeight.w700,
       color: accent,
       letterSpacing: 0,
@@ -603,10 +626,14 @@ class ContentBody extends StatelessWidget {
     for (final (s, e) in verses) {
       out.add(_Overlay(s, e, verseStyle));
     }
+    for (final (s, e) in brackets) {
+      out.add(_Overlay(s, e, bracketStyle));
+    }
     for (final (s, e) in refs) {
       out.add(_Overlay(s, e, refStyle));
     }
-    final taken = [...verses, ...refs]..sort((a, b) => a.$1.compareTo(b.$1));
+    final taken = [...verses, ...brackets, ...refs]
+      ..sort((a, b) => a.$1.compareTo(b.$1));
     for (final (s, e) in emphasis) {
       var cur = s;
       for (final (ts, te) in taken) {
@@ -637,6 +664,7 @@ class ContentBody extends StatelessWidget {
     final overlays = _buildOverlays(
       verses: verses,
       refs: refs,
+      brackets: remap(markup.brackets),
       emphasis: remap(markup.emphasis),
       emphasisStyle: emphasisStyle,
     );
@@ -1099,7 +1127,9 @@ class _Markup {
   final List<(int, int)> emphasis;
   final List<(int, int)> verses;
   final List<(int, int)> refs;
-  const _Markup(this.text, this.emphasis, this.verses, this.refs);
+  final List<(int, int)> brackets;
+  const _Markup(
+      this.text, this.emphasis, this.verses, this.refs, this.brackets);
 }
 
 class _HighlightRange {
