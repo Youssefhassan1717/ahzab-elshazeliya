@@ -635,8 +635,12 @@ class ContentBody extends StatelessWidget {
     );
 
     final out = <_Overlay>[];
+    // A verse inside a bold run is part of what gets repeated, so it bolds too.
     for (final (s, e) in verses) {
-      out.add(_Overlay(s, e, verseStyle));
+      final style = _overlapsAny(emphasis, s, e)
+          ? verseStyle.merge(emphasisStyle)
+          : verseStyle;
+      out.add(_Overlay(s, e, style));
     }
     for (final (s, e) in brackets) {
       out.add(_Overlay(s, e, bracketStyle));
@@ -657,6 +661,13 @@ class ContentBody extends StatelessWidget {
     }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;
+  }
+
+  static bool _overlapsAny(List<(int, int)> ranges, int start, int end) {
+    for (final (s, e) in ranges) {
+      if (s < end && e > start) return true;
+    }
+    return false;
   }
 
   Widget _buildStyledText(
