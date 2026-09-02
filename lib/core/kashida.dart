@@ -32,7 +32,11 @@ class KashidaJustifier {
 
   /// Lines filling less than this fraction of the column end a paragraph.
   static const double _minFillRatio = 0.55;
-  static const int _maxPerSpot = 4;
+  static const int _maxPerSpot = 2;
+
+  /// A single word may never absorb more than this, or it grows wider than
+  /// the column and the renderer breaks it in half.
+  static const int _maxPerWord = 4;
   static const int _cacheLimit = 32;
 
   static final LinkedHashMap<_Key, KashidaText> _cache = LinkedHashMap();
@@ -160,9 +164,15 @@ class KashidaJustifier {
 
   /// Source indices where a tatweel fits: between a forward-joining letter
   /// (plus its marks) and a letter that accepts a connection before it.
-  static List<int> _spots(String source, int start, int end) {
-    final spots = <int>[];
+  /// Each entry also carries the index of the word it sits in.
+  static List<_Spot> _spots(String source, int start, int end) {
+    final spots = <_Spot>[];
+    var word = 0;
     for (int i = start; i < end; i++) {
+      if (source.codeUnitAt(i) == 0x20) {
+        word++;
+        continue;
+      }
       if (!_joinsForward.contains(source[i])) continue;
       int j = i + 1;
       while (j < end && _isMark(source.codeUnitAt(j))) {
@@ -170,7 +180,7 @@ class KashidaJustifier {
       }
       if (j >= end) break;
       if (!_joinsBackward(source.codeUnitAt(j))) continue;
-      spots.add(j);
+      spots.add(_Spot(j, word));
     }
     return spots;
   }
@@ -180,28 +190,28 @@ class KashidaJustifier {
 
   static bool _joinsBackward(int c) => c >= 0x0622 && c <= 0x064A;
 
-  /// Spreads [count] tatweels as evenly as possible over [spots].
-  static Map<int, int> _distribute(List<int> spots, int count) {
+  /// Spreads [count] tatweels as evenly as possible over [spots], never
+  /// putting more than [_maxPerWord] into any one word.
+  static Map<int, int> _distribute(List<_Spot> spots, int count) {
     final result = <int, int>{};
     if (spots.isEmpty || count <= 0) return result;
-    final each = count ~/ spots.length;
-    var remainder = count % spots.length;
-    final step = remainder > 0 ? spots.length / remainder : 0.0;
-    double next = 0;
-    for (int i = 0; i < spots.length; i++) {
-      var amount = each;
-      if (remainder > 0 && i >= next) {
-        amount++;
-        remainder--;
-        next += step;
+    final perWord = <int, int>{};
+    var left = count;
+    for (var round = 0; round < _maxPerSpot && left > 0; round++) {
+      for (final spot in spots) {
+        if (left == 0) break;
+        final used = perWord[spot.word] ?? 0;
+        if (used >= _maxPerWord) continue;
+        perWord[spot.word] = used + 1;
+        result[spot.index] = (result[spot.index] ?? 0) + 1;
+        left--;
       }
-      if (amount > 0) result[spots[i]] = amount;
     }
     return result;
   }
 
   static String _apply(
-      String lineText, int lineStart, List<int> spots, int count) {
+      String lineText, int lineStart, List<_Spot> spots, int count) {
     if (count <= 0) return lineText;
     final amounts = _distribute(spots, count);
     final buffer = StringBuffer();
@@ -223,6 +233,12 @@ class KashidaJustifier {
     painter.dispose();
     return width;
   }
+}
+
+class _Spot {
+  final int index;
+  final int word;
+  const _Spot(this.index, this.word);
 }
 
 class _Key {
