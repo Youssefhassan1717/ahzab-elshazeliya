@@ -497,23 +497,24 @@ class ContentBody extends StatelessWidget {
     final frames = <(int, int)>[];
     final inner = <(int, int)>[];
     final quranFrames = <(int, int)>[];
-    // A repeat is underlined rather than bracketed: brackets mirror in Arabic,
-    // so the opening one ends up looking like the closing one.
+    // Gold brackets: the book's own brackets are body-coloured, so the two
+    // never read as the same thing.
     final open = <int>[];
     int i = 0;
     while (i < src.length) {
       if (src.startsWith(frameOpen, i)) {
-        open.add(buf.length);
+        final start = buf.length;
+        buf.write('\u0028 ');
+        (open.isEmpty ? frames : inner).add((start, buf.length));
+        open.add(start);
         i += frameOpen.length;
         continue;
       }
       if (src.startsWith(frameClose, i)) {
-        if (open.isNotEmpty) {
-          final start = open.removeLast();
-          if (buf.length > start) {
-            (open.isEmpty ? frames : inner).add((start, buf.length));
-          }
-        }
+        if (open.isNotEmpty) open.removeLast();
+        final start = buf.length;
+        buf.write(' \u0029');
+        (open.isEmpty ? frames : inner).add((start, buf.length));
         i += frameClose.length;
         continue;
       }
@@ -577,10 +578,12 @@ class ContentBody extends StatelessWidget {
                 source,
                 baseStyle,
                 width,
-                // Only the ornaments measure differently; an underline does
-                // not change a glyph's width, so those lines still justify.
+                // The mushaf face and the ornaments measure differently, so
+                // leave those lines out of the kashida pass.
                 skipRanges: [
                   ...markup.verses,
+                  ...markup.frames,
+                  ...markup.smallFrames,
                   ...markup.quranFrames,
                 ],
               );
@@ -612,10 +615,16 @@ class ContentBody extends StatelessWidget {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     );
-    // Coloured, not bracketed: nothing is inserted into the text, so nothing
-    // can shift or reflow when the reader zooms.
-    final frameStyle = TextStyle(color: accent);
-    final smallFrameStyle = frameStyle.copyWith(fontWeight: FontWeight.w700);
+    // Gold, so a repeat bracket never reads as one of the book's own brackets.
+    final frameStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: fontSize,
+      height: 2.15,
+      fontWeight: FontWeight.w700,
+      color: accent,
+      letterSpacing: 0,
+    );
+    final smallFrameStyle = frameStyle.copyWith(fontSize: fontSize * 0.85);
     final quranFrameStyle = TextStyle(
       fontFamily: 'Amiri',
       fontSize: fontSize * 0.85,
@@ -1140,10 +1149,10 @@ class _Markup {
   final String text;
   final List<(int, int)> verses;
 
-  /// A passage the hizb asks you to repeat, shown underlined.
+  /// A passage the hizb asks you to repeat, shown in gold brackets.
   final List<(int, int)> frames;
 
-  /// A repeat nested inside another repeat, underlined with dots.
+  /// A repeat nested inside another repeat, bracketed smaller.
   final List<(int, int)> smallFrames;
 
   /// Ornate brackets that mark a Qur'anic passage.
