@@ -476,9 +476,9 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Text wrapped in a pair of `§B§` markers gets ornate framing brackets —
-  /// it marks a passage the hizb asks you to repeat.
-  static const String boldMarker = '§B§';
+  /// `§B§ … §b§` frames a passage the hizb asks you to repeat. Frames nest.
+  static const String frameOpen = '§B§';
+  static const String frameClose = '§b§';
 
   /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
   static final _quranPattern = RegExp(r'§Q§(.+?)\|(.+?)§Q§', dotAll: true);
@@ -491,23 +491,31 @@ class ContentBody extends StatelessWidget {
     final buf = StringBuffer();
     final verses = <(int, int)>[];
     final frames = <(int, int)>[];
-    bool open = false;
+    final inner = <(int, int)>[];
+    int depth = 0;
     int i = 0;
     while (i < src.length) {
-      if (src.startsWith(boldMarker, i)) {
+      if (src.startsWith(frameOpen, i) || src.startsWith(frameClose, i)) {
+        final opening = src.startsWith(frameOpen, i);
+        if (!opening) depth--;
         final start = buf.length;
-        buf.write(open ? ' \uFD3E' : '\uFD3F ');
-        frames.add((start, buf.length));
-        open = !open;
-        i += boldMarker.length;
+        buf.write(opening ? '\uFD3F ' : ' \uFD3E');
+        (depth > 0 ? inner : frames).add((start, buf.length));
+        if (opening) depth++;
+        i += frameOpen.length;
         continue;
       }
       if (src.startsWith('§Q§', i)) {
         final m = _quranPattern.matchAsPrefix(src, i);
         if (m != null) {
+          final open = buf.length;
+          buf.write('\uFD3F ');
           final verseStart = buf.length;
           buf.write(m.group(2)!.trim());
           verses.add((verseStart, buf.length));
+          buf.write(' \uFD3E');
+          inner.add((open, open + 2));
+          inner.add((buf.length - 2, buf.length));
           i = m.end;
           continue;
         }
@@ -515,8 +523,7 @@ class ContentBody extends StatelessWidget {
       buf.write(src[i]);
       i++;
     }
-    final out = buf.toString();
-    return _Markup(out, verses, frames);
+    return _Markup(buf.toString(), verses, frames, inner);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -559,7 +566,11 @@ class ContentBody extends StatelessWidget {
                 width,
                 // The mushaf face and the ornaments measure differently, so
                 // leave those lines out of the kashida pass.
-                skipRanges: [...markup.verses, ...markup.frames],
+                skipRanges: [
+                  ...markup.verses,
+                  ...markup.frames,
+                  ...markup.smallFrames,
+                ],
               );
         return _buildStyledText(
           kashida,
@@ -576,8 +587,11 @@ class ContentBody extends StatelessWidget {
   List<_Overlay> _buildOverlays({
     required List<(int, int)> verses,
     required List<(int, int)> frames,
+    required List<(int, int)> smallFrames,
   }) {
-    if (verses.isEmpty && frames.isEmpty) return const [];
+    if (verses.isEmpty && frames.isEmpty && smallFrames.isEmpty) {
+      return const [];
+    }
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
       fontFamily: mushafFont,
@@ -594,6 +608,7 @@ class ContentBody extends StatelessWidget {
       color: accent,
       letterSpacing: 0,
     );
+    final smallFrameStyle = frameStyle.copyWith(fontSize: fontSize * 0.8);
 
     final out = <_Overlay>[];
     for (final (s, e) in verses) {
@@ -601,6 +616,9 @@ class ContentBody extends StatelessWidget {
     }
     for (final (s, e) in frames) {
       out.add(_Overlay(s, e, frameStyle));
+    }
+    for (final (s, e) in smallFrames) {
+      out.add(_Overlay(s, e, smallFrameStyle));
     }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;
@@ -620,6 +638,7 @@ class ContentBody extends StatelessWidget {
     final overlays = _buildOverlays(
       verses: remap(markup.verses),
       frames: remap(markup.frames),
+      smallFrames: remap(markup.smallFrames),
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -1082,11 +1101,15 @@ class _Markup {
   /// Ornate brackets framing a passage that is repeated.
   final List<(int, int)> frames;
 
-  const _Markup(this.text, this.verses, this.frames);
+  /// Brackets drawn smaller — a Qur'anic passage, or a repeat inside a repeat.
+  final List<(int, int)> smallFrames;
+
+  const _Markup(this.text, this.verses, this.frames, this.smallFrames);
 
   const _Markup.empty(this.text)
       : verses = const [],
-        frames = const [];
+        frames = const [],
+        smallFrames = const [];
 }
 
 class _HighlightRange {
