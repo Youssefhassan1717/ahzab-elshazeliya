@@ -492,6 +492,7 @@ class ContentBody extends StatelessWidget {
     final verses = <(int, int)>[];
     final frames = <(int, int)>[];
     final inner = <(int, int)>[];
+    final quranFrames = <(int, int)>[];
     int depth = 0;
     int i = 0;
     while (i < src.length) {
@@ -499,7 +500,8 @@ class ContentBody extends StatelessWidget {
         final opening = src.startsWith(frameOpen, i);
         if (!opening) depth--;
         final start = buf.length;
-        buf.write(opening ? '\uFD3F ' : ' \uFD3E');
+        // Round brackets, so a repeated passage never looks like a Qur'an one.
+        buf.write(opening ? '\u0028 ' : ' \u0029');
         (depth > 0 ? inner : frames).add((start, buf.length));
         if (opening) depth++;
         i += frameOpen.length;
@@ -510,12 +512,13 @@ class ContentBody extends StatelessWidget {
         if (m != null) {
           final open = buf.length;
           buf.write('\uFD3F ');
+          quranFrames.add((open, buf.length));
           final verseStart = buf.length;
           buf.write(m.group(2)!.trim());
           verses.add((verseStart, buf.length));
+          final close = buf.length;
           buf.write(' \uFD3E');
-          inner.add((open, open + 2));
-          inner.add((buf.length - 2, buf.length));
+          quranFrames.add((close, buf.length));
           i = m.end;
           continue;
         }
@@ -523,7 +526,7 @@ class ContentBody extends StatelessWidget {
       buf.write(src[i]);
       i++;
     }
-    return _Markup(buf.toString(), verses, frames, inner);
+    return _Markup(buf.toString(), verses, frames, inner, quranFrames);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -570,6 +573,7 @@ class ContentBody extends StatelessWidget {
                   ...markup.verses,
                   ...markup.frames,
                   ...markup.smallFrames,
+                  ...markup.quranFrames,
                 ],
               );
         return _buildStyledText(
@@ -588,6 +592,7 @@ class ContentBody extends StatelessWidget {
     required List<(int, int)> verses,
     required List<(int, int)> frames,
     required List<(int, int)> smallFrames,
+    required List<(int, int)> quranFrames,
   }) {
     if (verses.isEmpty && frames.isEmpty && smallFrames.isEmpty) {
       return const [];
@@ -600,15 +605,23 @@ class ContentBody extends StatelessWidget {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     );
-    // Amiri draws the ornate parentheses properly; the mushaf face does not.
+    // Round brackets for a repeated passage, ornate ones for Qur'an.
     final frameStyle = TextStyle(
       fontFamily: 'Amiri',
-      fontSize: fontSize * 1.1,
+      fontSize: fontSize * 1.35,
+      height: 2.15,
+      fontWeight: FontWeight.w700,
+      color: accent,
+      letterSpacing: 0,
+    );
+    final smallFrameStyle = frameStyle.copyWith(fontSize: fontSize * 0.95);
+    final quranFrameStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: fontSize * 0.85,
       height: 2.15,
       color: accent,
       letterSpacing: 0,
     );
-    final smallFrameStyle = frameStyle.copyWith(fontSize: fontSize * 0.8);
 
     final out = <_Overlay>[];
     for (final (s, e) in verses) {
@@ -619,6 +632,9 @@ class ContentBody extends StatelessWidget {
     }
     for (final (s, e) in smallFrames) {
       out.add(_Overlay(s, e, smallFrameStyle));
+    }
+    for (final (s, e) in quranFrames) {
+      out.add(_Overlay(s, e, quranFrameStyle));
     }
     out.sort((a, b) => a.start.compareTo(b.start));
     return out;
@@ -639,6 +655,7 @@ class ContentBody extends StatelessWidget {
       verses: remap(markup.verses),
       frames: remap(markup.frames),
       smallFrames: remap(markup.smallFrames),
+      quranFrames: remap(markup.quranFrames),
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -1098,18 +1115,23 @@ class _Markup {
   final String text;
   final List<(int, int)> verses;
 
-  /// Ornate brackets framing a passage that is repeated.
+  /// Round brackets around a passage that is repeated.
   final List<(int, int)> frames;
 
-  /// Brackets drawn smaller — a Qur'anic passage, or a repeat inside a repeat.
+  /// A repeat nested inside another repeat, drawn smaller.
   final List<(int, int)> smallFrames;
 
-  const _Markup(this.text, this.verses, this.frames, this.smallFrames);
+  /// Ornate brackets that mark a Qur'anic passage.
+  final List<(int, int)> quranFrames;
+
+  const _Markup(this.text, this.verses, this.frames, this.smallFrames,
+      this.quranFrames);
 
   const _Markup.empty(this.text)
       : verses = const [],
         frames = const [],
-        smallFrames = const [];
+        smallFrames = const [],
+        quranFrames = const [];
 }
 
 class _HighlightRange {
