@@ -480,6 +480,10 @@ class ContentBody extends StatelessWidget {
   static const String frameOpen = '§B§';
   static const String frameClose = '§b§';
 
+  /// `{ ثلاثاً }` and the `*` between du'as, both drawn in the accent colour.
+  static final _labelPattern = RegExp(r'\{[^}]*\}');
+  static final _separatorPattern = RegExp(r'\*');
+
   /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
   static final _quranPattern = RegExp(r'§Q§(.+?)\|(.+?)§Q§', dotAll: true);
 
@@ -493,26 +497,32 @@ class ContentBody extends StatelessWidget {
     final frames = <(int, int)>[];
     final inner = <(int, int)>[];
     final quranFrames = <(int, int)>[];
-    int depth = 0;
+    // A repeat is underlined rather than bracketed: brackets mirror in Arabic,
+    // so the opening one ends up looking like the closing one.
+    final open = <int>[];
     int i = 0;
     while (i < src.length) {
-      if (src.startsWith(frameOpen, i) || src.startsWith(frameClose, i)) {
-        final opening = src.startsWith(frameOpen, i);
-        if (!opening) depth--;
-        final start = buf.length;
-        // Round brackets, so a repeated passage never looks like a Qur'an one.
-        buf.write(opening ? '\u0028 ' : ' \u0029');
-        (depth > 0 ? inner : frames).add((start, buf.length));
-        if (opening) depth++;
+      if (src.startsWith(frameOpen, i)) {
+        open.add(buf.length);
         i += frameOpen.length;
+        continue;
+      }
+      if (src.startsWith(frameClose, i)) {
+        if (open.isNotEmpty) {
+          final start = open.removeLast();
+          if (buf.length > start) {
+            (open.isEmpty ? frames : inner).add((start, buf.length));
+          }
+        }
+        i += frameClose.length;
         continue;
       }
       if (src.startsWith('§Q§', i)) {
         final m = _quranPattern.matchAsPrefix(src, i);
         if (m != null) {
-          final open = buf.length;
+          final openAt = buf.length;
           buf.write('\uFD3F ');
-          quranFrames.add((open, buf.length));
+          quranFrames.add((openAt, buf.length));
           final verseStart = buf.length;
           buf.write(m.group(2)!.trim());
           verses.add((verseStart, buf.length));
@@ -567,12 +577,10 @@ class ContentBody extends StatelessWidget {
                 source,
                 baseStyle,
                 width,
-                // The mushaf face and the ornaments measure differently, so
-                // leave those lines out of the kashida pass.
+                // Only the ornaments measure differently; an underline does
+                // not change a glyph's width, so those lines still justify.
                 skipRanges: [
                   ...markup.verses,
-                  ...markup.frames,
-                  ...markup.smallFrames,
                   ...markup.quranFrames,
                 ],
               );
@@ -587,16 +595,15 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Merges the mushaf and frame ranges into one ordered list.
+  /// Merges the mushaf, repeat and ornament ranges into one ordered list of
+  /// non-overlapping spans, so an inner style survives inside an outer one.
   List<_Overlay> _buildOverlays({
+    required String text,
     required List<(int, int)> verses,
     required List<(int, int)> frames,
     required List<(int, int)> smallFrames,
     required List<(int, int)> quranFrames,
   }) {
-    if (verses.isEmpty && frames.isEmpty && smallFrames.isEmpty) {
-      return const [];
-    }
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
       fontFamily: mushafFont,
@@ -605,16 +612,15 @@ class ContentBody extends StatelessWidget {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     );
-    // Round brackets for a repeated passage, ornate ones for Qur'an.
+    // Underlined, not bracketed: nothing is inserted into the text, so nothing
+    // can shift or reflow when the reader zooms.
     final frameStyle = TextStyle(
-      fontFamily: 'Amiri',
-      fontSize: fontSize * 1.35,
-      height: 2.15,
-      fontWeight: FontWeight.w700,
-      color: accent,
-      letterSpacing: 0,
+      decoration: TextDecoration.underline,
+      decorationColor: accent,
+      decorationThickness: 1.5,
     );
-    final smallFrameStyle = frameStyle.copyWith(fontSize: fontSize * 0.95);
+    final smallFrameStyle =
+        frameStyle.copyWith(decorationStyle: TextDecorationStyle.dotted);
     final quranFrameStyle = TextStyle(
       fontFamily: 'Amiri',
       fontSize: fontSize * 0.85,
@@ -622,21 +628,39 @@ class ContentBody extends StatelessWidget {
       color: accent,
       letterSpacing: 0,
     );
+    final labelStyle = TextStyle(color: accent, fontWeight: FontWeight.w700);
+    final separatorStyle = TextStyle(color: accent);
 
+    // Ordered outermost first: later layers are merged over earlier ones.
+    final layers = <_Overlay>[
+      for (final (s, e) in frames) _Overlay(s, e, frameStyle),
+      for (final (s, e) in smallFrames) _Overlay(s, e, smallFrameStyle),
+      for (final (s, e) in verses) _Overlay(s, e, verseStyle),
+      for (final (s, e) in quranFrames) _Overlay(s, e, quranFrameStyle),
+      for (final m in _labelPattern.allMatches(text))
+        _Overlay(m.start, m.end, labelStyle),
+      for (final m in _separatorPattern.allMatches(text))
+        _Overlay(m.start, m.end, separatorStyle),
+    ];
+    if (layers.isEmpty) return const [];
+
+    final edges = <int>{};
+    for (final o in layers) {
+      edges.add(o.start);
+      edges.add(o.end);
+    }
+    final sorted = edges.toList()..sort();
     final out = <_Overlay>[];
-    for (final (s, e) in verses) {
-      out.add(_Overlay(s, e, verseStyle));
+    for (var i = 0; i + 1 < sorted.length; i++) {
+      final s = sorted[i], e = sorted[i + 1];
+      TextStyle? merged;
+      for (final o in layers) {
+        if (o.start <= s && o.end >= e) {
+          merged = merged == null ? o.style : merged.merge(o.style);
+        }
+      }
+      if (merged != null) out.add(_Overlay(s, e, merged));
     }
-    for (final (s, e) in frames) {
-      out.add(_Overlay(s, e, frameStyle));
-    }
-    for (final (s, e) in smallFrames) {
-      out.add(_Overlay(s, e, smallFrameStyle));
-    }
-    for (final (s, e) in quranFrames) {
-      out.add(_Overlay(s, e, quranFrameStyle));
-    }
-    out.sort((a, b) => a.start.compareTo(b.start));
     return out;
   }
 
@@ -652,6 +676,7 @@ class ContentBody extends StatelessWidget {
         .map((r) => (kashida.mapIndex(r.$1), kashida.mapIndex(r.$2)))
         .toList();
     final overlays = _buildOverlays(
+      text: text,
       verses: remap(markup.verses),
       frames: remap(markup.frames),
       smallFrames: remap(markup.smallFrames),
@@ -1115,10 +1140,10 @@ class _Markup {
   final String text;
   final List<(int, int)> verses;
 
-  /// Round brackets around a passage that is repeated.
+  /// A passage the hizb asks you to repeat, shown underlined.
   final List<(int, int)> frames;
 
-  /// A repeat nested inside another repeat, drawn smaller.
+  /// A repeat nested inside another repeat, underlined with dots.
   final List<(int, int)> smallFrames;
 
   /// Ornate brackets that mark a Qur'anic passage.
