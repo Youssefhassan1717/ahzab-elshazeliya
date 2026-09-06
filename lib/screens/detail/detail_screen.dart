@@ -371,9 +371,7 @@ class _DetailScreenState extends State<DetailScreen>
                     content: widget.part.content,
                     title: widget.part.title,
                     separateParagraphs: widget.part.id == 'ad3eya',
-                    bodyFontFamily: widget.part.id == 'bahr'
-                        ? ContentBody.mushafFont
-                        : 'ScheherazadeNew',
+                    bodyFontFamily: ContentBody.mushafFont,
                     isScaling: _isScaling,
                     fontSize: fontSize,
                     isDark: isDark,
