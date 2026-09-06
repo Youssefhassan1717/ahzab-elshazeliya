@@ -612,15 +612,10 @@ class ContentBody extends StatelessWidget {
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
     );
-    // Underlined, not bracketed: nothing is inserted into the text, so nothing
+    // Coloured, not bracketed: nothing is inserted into the text, so nothing
     // can shift or reflow when the reader zooms.
-    final frameStyle = TextStyle(
-      decoration: TextDecoration.underline,
-      decorationColor: accent,
-      decorationThickness: 1.5,
-    );
-    final smallFrameStyle =
-        frameStyle.copyWith(decorationStyle: TextDecorationStyle.dotted);
+    final frameStyle = TextStyle(color: accent);
+    final smallFrameStyle = frameStyle.copyWith(fontWeight: FontWeight.w700);
     final quranFrameStyle = TextStyle(
       fontFamily: 'Amiri',
       fontSize: fontSize * 0.85,
@@ -628,7 +623,8 @@ class ContentBody extends StatelessWidget {
       color: accent,
       letterSpacing: 0,
     );
-    final labelStyle = TextStyle(color: accent, fontWeight: FontWeight.w700);
+    final bodyColor =
+        isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
     final separatorStyle = TextStyle(color: accent);
 
     // Ordered outermost first: later layers are merged over earlier ones.
@@ -637,8 +633,12 @@ class ContentBody extends StatelessWidget {
       for (final (s, e) in smallFrames) _Overlay(s, e, smallFrameStyle),
       for (final (s, e) in verses) _Overlay(s, e, verseStyle),
       for (final (s, e) in quranFrames) _Overlay(s, e, quranFrameStyle),
-      for (final m in _labelPattern.allMatches(text))
-        _Overlay(m.start, m.end, labelStyle),
+      for (final m in _labelPattern.allMatches(text)) ...[
+        // The count is gold, its braces stay the colour of the body text.
+        _Overlay(m.start, m.end, TextStyle(color: bodyColor)),
+        _Overlay(m.start + 1, m.end - 1,
+            TextStyle(color: accent, fontWeight: FontWeight.w700)),
+      ],
       for (final m in _separatorPattern.allMatches(text))
         _Overlay(m.start, m.end, separatorStyle),
     ];
