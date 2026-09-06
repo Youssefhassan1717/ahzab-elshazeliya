@@ -20,16 +20,25 @@ void main(List<String> args) {
     if (e['ayah'] == 1 && e['surah'] != 1 && words.length > 4) {
       if (words.take(4).map(_norm).join(' ') == _basmala) words = words.sublist(4);
     }
+    // A waqf mark can stand alone between two words; left in, it looks like a
+    // word that matches nothing and every passage stops dead at it.
+    words = words
+        .map((w) => w.replaceAll(_marks, ''))
+        .where((w) => _norm(w).isNotEmpty)
+        .toList();
     surahs
         .putIfAbsent(e['surah'], () => _Surah(e['surah'], _surahName(e['name'])))
         .add(e['ayah'], words);
   }
 
+  // The seed is indexed on the consonantal skeleton: the mushaf's rasm and the
+  // hizb's modern spelling differ often enough (السموت / السماوات) that an
+  // exact seed simply never fires on those ayat.
   final index = <String, List<_Hit>>{};
   for (final s in surahs.values) {
-    for (var i = 0; i + gram <= s.norm.length; i++) {
+    for (var i = 0; i + gram <= s.loose.length; i++) {
       index
-          .putIfAbsent(s.norm.sublist(i, i + gram).join(' '), () => [])
+          .putIfAbsent(s.loose.sublist(i, i + gram).join(' '), () => [])
           .add(_Hit(s, i));
     }
   }
@@ -58,7 +67,7 @@ void main(List<String> args) {
     final spans = <_Span>[];
     var t = 0;
     while (t + gram <= tokens.length) {
-      final hits = index[tokens.sublist(t, t + gram).map((x) => x.norm).join(' ')];
+      final hits = index[tokens.sublist(t, t + gram).map((x) => x.loose).join(' ')];
       if (hits == null) {
         t++;
         continue;
@@ -66,14 +75,16 @@ void main(List<String> args) {
       _Span? best;
       for (final hit in hits) {
         var ws = hit.index, ts = t;
-        while (ws > 0 && ts > 0 && hit.surah.norm[ws - 1] == tokens[ts - 1].norm) {
+        while (ws > 0 &&
+            ts > 0 &&
+            _sameWord(tokens[ts - 1].norm, hit.surah.norm[ws - 1])) {
           ws--;
           ts--;
         }
         var we = hit.index, te = t;
         while (we < hit.surah.norm.length &&
             te < tokens.length &&
-            hit.surah.norm[we] == tokens[te].norm) {
+            _sameWord(tokens[te].norm, hit.surah.norm[we])) {
           we++;
           te++;
         }
@@ -87,47 +98,80 @@ void main(List<String> args) {
         continue;
       }
       spans.add(best);
-      t = best.end;
+      // A span may reach only backwards from the seed, so the cursor has to be
+      // nudged along by hand or the same seed is found for ever.
+      t = best.end > t ? best.end : t + 1;
     }
 
     final ready = <_Ready>[];
     for (final span in spans) {
       final s = span.surah;
-      var wordStart = span.wordStart, wordEnd = span.wordEnd;
-      var start = span.start, end = span.end;
+      var ws = span.wordStart, we = span.wordEnd;
+      // The span is word-for-word, so one offset maps mushaf to hizb throughout.
+      final off = span.start - ws;
 
-      final firstAyah = s.ayahAt(wordStart);
-      final lastAyah = s.ayahAt(wordEnd - 1);
-      final ayahFrom = s.startOf(firstAyah);
-      final ayahTo = s.endOf(lastAyah);
-      final coverage = (wordEnd - wordStart) / (ayahTo - ayahFrom);
+      var firstAyah = s.ayahAt(ws);
+      var lastAyah = s.ayahAt(we - 1);
+      final coverage = (we - ws) / (s.endOf(lastAyah) - s.startOf(firstAyah));
 
-      // Walk the edges outwards while the hizb word is recognisably the same.
-      var grew = false;
-      while (wordStart > ayahFrom && start > 0) {
-        if (!_sameWord(tokens[start - 1].norm, s.norm[wordStart - 1])) break;
-        wordStart--;
-        start--;
-        grew = true;
+      // Reach back to the head of the first ayah; when the hizb does not have
+      // it, that ayah is only half quoted, so drop it and keep the rest.
+      final from = s.startOf(firstAyah);
+      while (ws > from &&
+          ws + off > 0 &&
+          _sameWord(tokens[ws + off - 1].norm, s.norm[ws - 1])) {
+        ws--;
       }
-      while (wordEnd < ayahTo && end < tokens.length) {
-        if (!_sameWord(tokens[end].norm, s.norm[wordEnd])) break;
-        wordEnd++;
-        end++;
-        grew = true;
+      if (ws != from && firstAyah < lastAyah) {
+        firstAyah++;
+        ws = s.startOf(firstAyah);
       }
 
-      if (wordStart != ayahFrom || wordEnd != ayahTo) {
+      final to = s.endOf(lastAyah);
+      while (we < to &&
+          we + off < tokens.length &&
+          _sameWord(tokens[we + off].norm, s.norm[we])) {
+        we++;
+      }
+      if (we != to && lastAyah > firstAyah) {
+        lastAyah--;
+        we = s.endOf(lastAyah);
+      }
+
+      final start = ws + off, end = we + off;
+      if (ws != s.startOf(firstAyah) ||
+          we != s.endOf(lastAyah) ||
+          we - ws < 4 ||
+          start < 0 ||
+          end > tokens.length) {
         if (coverage >= minCoverage) {
           report.writeln('[${ids[b]}] MISSED ${s.name} '
-              '${_digits(s.numberOf(firstAyah))} '
-              '${(coverage * 100).round()}% - edges did not line up');
+              '${_digits(s.numberOf(s.ayahAt(span.wordStart)))} '
+              '${(coverage * 100).round()}% - not a whole ayah');
         }
         skipped++;
         continue;
       }
-      grew ? stretched++ : exact++;
-      ready.add(_Ready(start, end, s, firstAyah, lastAyah));
+      we - ws == span.wordEnd - span.wordStart ? exact++ : stretched++;
+      // The basmala opens most ahzab as a formula, not as a quotation.
+      if (s.number == 1 && firstAyah == 0 && lastAyah == 0) continue;
+
+      // Rewriting the passage would wipe out any marker caught inside it, so
+      // give back the trailing ayat until what is left is clear of them.
+      var last = lastAyah, end2 = end;
+      while (last >= firstAyah &&
+          content
+              .substring(tokens[start].start, tokens[end2 - 1].end)
+              .contains('\u00A7')) {
+        last--;
+        if (last >= firstAyah) end2 = s.endOf(last) + off;
+      }
+      if (last < firstAyah || end2 - start < 4) {
+        report.writeln('[${ids[b]}] SKIPPED ${s.name} '
+            '${_digits(s.numberOf(firstAyah))} - a marker sits inside it');
+        continue;
+      }
+      ready.add(_Ready(start, end2, s, firstAyah, last));
     }
 
     // Two passages that run into each other, or that share an ayah, are really
@@ -141,9 +185,12 @@ void main(List<String> args) {
         if (!touching) {
           final between =
               content.substring(tokens[prev.end - 1].end, tokens[cur.start].start);
-          if (RegExp('[\u0621-\u064A]').hasMatch(between)) continue;
+          if (RegExp('[\u0621-\u064A\u00A7]').hasMatch(between)) continue;
         }
-      } else if (!_bridges(prev, cur, tokens)) {
+      } else if (!_bridges(prev, cur, tokens) ||
+          content
+              .substring(tokens[prev.end - 1].end, tokens[cur.start].start)
+              .contains('\u00A7')) {
         continue;
       }
       ready[k - 1] = _Ready(
@@ -186,6 +233,15 @@ void main(List<String> args) {
       'left as partial: $skipped${apply ? " - applied" : " - dry run"}');
 }
 
+/// The consonantal skeleton, which the mushaf's rasm and the hizb's spelling
+/// still agree on when the long vowels they write differ. Short words keep
+/// their vowels - stripping those leaves too little to tell them apart.
+String _loose(String n) {
+  if (n.length <= 3) return n;
+  final s = n.replaceAll(RegExp('[\u0627\u0648\u064A]'), '');
+  return s.length < 3 ? n : s;
+}
+
 /// A short ayah between two matched passages is never found on its own, so the
 /// gap is closed when the hizb words in between are the missing mushaf words.
 bool _bridges(_Ready prev, _Ready cur, List<_Token> tokens) {
@@ -202,7 +258,12 @@ bool _bridges(_Ready prev, _Ready cur, List<_Token> tokens) {
 
 /// Two spellings of the same word: identical, or within a couple of letters of
 /// each other, which is all that separates the hizb's spelling from the mushaf.
-bool _sameWord(String a, String b) {
+final _sameWordMemo = <String, bool>{};
+
+bool _sameWord(String a, String b) =>
+    _sameWordMemo.putIfAbsent('$a|$b', () => _compare(a, b));
+
+bool _compare(String a, String b) {
   if (a == b) return true;
   final shortest = a.length < b.length ? a.length : b.length;
   if (shortest < 3) return false;
@@ -231,7 +292,8 @@ int _distance(String a, String b, int cap) {
   return prev[b.length];
 }
 
-final _diacritics = RegExp('[\u064B-\u0652\u0670\u0640\u06D6-\u06ED]');
+final _diacritics = RegExp('[\u064B-\u065F\u0670\u0640\u06D6-\u06ED]');
+final _marks = RegExp('[\u06D6-\u06ED]');
 final _wordPattern = RegExp('[\u0621-\u065F\u0670\u06D6-\u06ED]+');
 final _basmala = '\u0628\u0633\u0645 \u0627\u0644\u0644\u0647 '
     '\u0627\u0644\u0631\u062D\u0645\u0646 \u0627\u0644\u0631\u062D\u064A\u0645';
@@ -250,10 +312,12 @@ String _surahName(String raw) {
   if (parts.length > 1 && _norm(parts.first) == '\u0633\u0648\u0631\u0647') {
     parts.removeAt(0);
   }
+  // Vowels go, but the maddah stays - without it آل عمران and صٓ lose a letter.
   return parts
       .join(' ')
-      .replaceAll(_diacritics, '')
-      .replaceAll('\u0671', '\u0627');
+      .replaceAll(RegExp('[\u064B-\u0652\u0670\u0640\u06D6-\u06ED]'), '')
+      .replaceAll('\u0671', '\u0627')
+      .replaceAll(RegExp('\u0625\$'), '\u0623');
 }
 
 String _digits(int n) => n
@@ -264,9 +328,10 @@ String _digits(int n) => n
 
 class _Token {
   final String norm;
+  final String loose;
   final int start;
   final int end;
-  _Token(this.norm, this.start, this.end);
+  _Token(this.norm, this.start, this.end) : loose = _loose(norm);
 }
 
 class _Hit {
@@ -299,6 +364,7 @@ class _Surah {
   final String name;
   final display = <String>[];
   final norm = <String>[];
+  final loose = <String>[];
   final _starts = <int>[];
   final _numbers = <int>[];
 
@@ -309,6 +375,7 @@ class _Surah {
     _numbers.add(ayahNumber);
     display.addAll(words);
     norm.addAll(words.map(_norm));
+    loose.addAll(words.map((w) => _loose(_norm(w))));
   }
 
   int startOf(int i) => _starts[i];
