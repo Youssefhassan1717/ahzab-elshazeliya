@@ -228,22 +228,6 @@ class _HizbCardState extends State<HizbCard> with TickerProviderStateMixin {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 1,
                                   ),
-                                  if (part.subtitle != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      part.subtitle!,
-                                      style: TextStyle(
-                                        fontFamily: 'ScheherazadeNew',
-                                        fontSize: 12.5,
-                                        color: isDark
-                                            ? AppColors.darkTextSecondary
-                                            : AppColors.lightTextSecondary,
-                                        height: 1.3,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ],
                                   // Content match snippet
                                   if (widget.searchQuery.isNotEmpty) ...[                                    
                                     _buildSnippet(isDark, accentColor),
