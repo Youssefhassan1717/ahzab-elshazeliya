@@ -480,9 +480,8 @@ class ContentBody extends StatelessWidget {
   static const String frameOpen = '§B§';
   static const String frameClose = '§b§';
 
-  /// `{ ثلاثاً }` and the `*` between du'as, both drawn in the accent colour.
+  /// `{ ثلاثاً }` and the like: the count is drawn in the accent colour.
   static final _labelPattern = RegExp(r'\{[^}]*\}');
-  static final _separatorPattern = RegExp(r'\*');
 
   /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
   static final _quranPattern = RegExp(r'§Q§(.+?)\|(.+?)§Q§', dotAll: true);
@@ -497,6 +496,7 @@ class ContentBody extends StatelessWidget {
     final frames = <(int, int)>[];
     final inner = <(int, int)>[];
     final quranFrames = <(int, int)>[];
+    final frameSpans = <(int, int)>[];
     // Gold brackets: the book's own brackets are body-coloured, so the two
     // never read as the same thing.
     final open = <int>[];
@@ -511,10 +511,11 @@ class ContentBody extends StatelessWidget {
         continue;
       }
       if (src.startsWith(frameClose, i)) {
-        if (open.isNotEmpty) open.removeLast();
+        final openedAt = open.isEmpty ? null : open.removeLast();
         final start = buf.length;
         buf.write(' \u0029');
         (open.isEmpty ? frames : inner).add((start, buf.length));
+        if (openedAt != null) frameSpans.add((openedAt, buf.length));
         i += frameClose.length;
         continue;
       }
@@ -537,7 +538,8 @@ class ContentBody extends StatelessWidget {
       buf.write(src[i]);
       i++;
     }
-    return _Markup(buf.toString(), verses, frames, inner, quranFrames);
+    return _Markup(
+        buf.toString(), verses, frames, inner, quranFrames, frameSpans);
   }
 
   /// Resolves the markup exactly as the body does, for index-space parity.
@@ -606,6 +608,7 @@ class ContentBody extends StatelessWidget {
     required List<(int, int)> frames,
     required List<(int, int)> smallFrames,
     required List<(int, int)> quranFrames,
+    required List<(int, int)> frameSpans,
   }) {
     final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
     final verseStyle = TextStyle(
@@ -634,10 +637,10 @@ class ContentBody extends StatelessWidget {
     );
     final bodyColor =
         isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final separatorStyle = TextStyle(color: accent);
 
     // Ordered outermost first: later layers are merged over earlier ones.
     final layers = <_Overlay>[
+      for (final (s, e) in frameSpans) _Overlay(s, e, TextStyle(color: accent)),
       for (final (s, e) in frames) _Overlay(s, e, frameStyle),
       for (final (s, e) in smallFrames) _Overlay(s, e, smallFrameStyle),
       for (final (s, e) in verses) _Overlay(s, e, verseStyle),
@@ -648,8 +651,6 @@ class ContentBody extends StatelessWidget {
         _Overlay(m.start + 1, m.end - 1,
             TextStyle(color: accent, fontWeight: FontWeight.w700)),
       ],
-      for (final m in _separatorPattern.allMatches(text))
-        _Overlay(m.start, m.end, separatorStyle),
     ];
     if (layers.isEmpty) return const [];
 
@@ -690,6 +691,7 @@ class ContentBody extends StatelessWidget {
       frames: remap(markup.frames),
       smallFrames: remap(markup.smallFrames),
       quranFrames: remap(markup.quranFrames),
+      frameSpans: remap(markup.frameSpans),
     );
 
     final accentColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
@@ -1158,14 +1160,18 @@ class _Markup {
   /// Ornate brackets that mark a Qur'anic passage.
   final List<(int, int)> quranFrames;
 
+  /// A whole repeated passage, brackets included, drawn in the accent colour.
+  final List<(int, int)> frameSpans;
+
   const _Markup(this.text, this.verses, this.frames, this.smallFrames,
-      this.quranFrames);
+      this.quranFrames, this.frameSpans);
 
   const _Markup.empty(this.text)
       : verses = const [],
         frames = const [],
         smallFrames = const [],
-        quranFrames = const [];
+        quranFrames = const [],
+        frameSpans = const [];
 }
 
 class _HighlightRange {

@@ -9,7 +9,7 @@ void main(List<String> args) {
   final blocks =
       RegExp(r"content: r'''(.*?)'''", dotAll: true).allMatches(text).toList();
 
-  var joined = 0, unwrapped = 0, dropped = 0, relabelled = 0;
+  var joined = 0, unwrapped = 0, dropped = 0, relabelled = 0, separators = 0;
 
   for (var b = blocks.length - 1; b >= 0; b--) {
     var c = blocks[b].group(1)!;
@@ -57,6 +57,17 @@ void main(List<String> args) {
       return '{ ${m.group(1)} }';
     });
 
+    // One separator across the whole book: the rub-el-hizb mark that hizb
+    // al-Bahr already uses, in place of asterisks and stray pipes.
+    c = c.replaceAllMapped(RegExp(r'\s*\*\s*'), (_) {
+      separators++;
+      return ' \u06DE ';
+    });
+    c = c.replaceAllMapped(RegExp(r'\s+\|\s+'), (_) {
+      separators++;
+      return ' \u06DE ';
+    });
+
     text = text.substring(0, blocks[b].start) +
         "content: r'''$c'''" +
         text.substring(blocks[b].end);
@@ -64,7 +75,8 @@ void main(List<String> args) {
 
   if (apply) file.writeAsStringSync(text);
   stdout.writeln('words joined: $joined, brackets unwrapped: $unwrapped, '
-      'stray numbers dropped: $dropped, labels normalised: $relabelled'
+      'stray numbers dropped: $dropped, labels normalised: $relabelled, '
+      'separators unified: $separators'
       '${apply ? " - applied" : " - dry run"}');
 }
 
