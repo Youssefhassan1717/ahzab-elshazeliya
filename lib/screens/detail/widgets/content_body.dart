@@ -68,85 +68,6 @@ class ContentBody extends StatelessWidget {
     );
   }
 
-  /// Decorative band at top/bottom of the frame.
-  /// When [label] is set it replaces the centre ornament with that text.
-  Widget _ornamentalBand(Color accent, Color accentSoft, Color accentFaint,
-      {String? label}) {
-    final hasLabel = label != null && label.isNotEmpty;
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: hasLabel ? 5 : 8),
-      decoration: BoxDecoration(
-        color: accentFaint,
-        border: Border(
-          bottom: BorderSide(color: accentSoft, width: 0.5),
-          top: BorderSide(color: accentSoft, width: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 12),
-          Expanded(child: _gradientLine(accent, true)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            child: _eightPointStar(accent, 5),
-          ),
-          if (hasLabel)
-            // Sized, not flexible, so the two rules share the leftover space
-            // evenly and the name always lands dead centre.
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 260),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '﴿ $label ﴾',
-                    maxLines: 1,
-                    softWrap: false,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Amiri',
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      height: 1.25,
-                      color: accent,
-                    ),
-                  ),
-                ),
-              ),
-            )
-          else
-            Text(
-              ' ۞ ',
-              style: TextStyle(
-                fontSize: 12,
-                color: accent.withValues(alpha: 0.35),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            child: _eightPointStar(accent, 5),
-          ),
-          Expanded(child: _gradientLine(accent, false)),
-          const SizedBox(width: 12),
-        ],
-      ),
-    );
-  }
-
-  /// Side border with repeating diamond dots
-  Widget _sideOrnament(Color accent, bool isDark) {
-    return SizedBox(
-      width: 6,
-      child: CustomPaint(
-        painter: _SideBorderPainter(
-          color: accent.withValues(alpha: isDark ? 0.08 : 0.05),
-          dotColor: accent.withValues(alpha: isDark ? 0.14 : 0.08),
-        ),
-      ),
-    );
-  }
-
   static final _sectionPattern = RegExp(r'§SECTION§(.+?)§SECTION§');
   static final _multiNewlinePattern = RegExp(r'\n{3,}');
   static final _doubleNewlinePattern = RegExp(r'\n{2}');
@@ -321,158 +242,23 @@ class ContentBody extends StatelessWidget {
       lastEnd = textEnd;
     }
 
-    // Check if there are multiple sections (sub-ahzab needing inner frames)
-    final sectionCount = sectionEntries.where((e) => e.header != null).length;
-    final needsInnerFrames = sectionCount > 1;
-
     final parts = <Widget>[];
 
     for (final entry in sectionEntries) {
-      if (entry.header != null && needsInnerFrames) {
-        // Build inner framed card for this sub-hizb
-        parts.add(_buildInnerSectionCard(
-          title: entry.header!,
-          body: entry.text.isNotEmpty
-              ? buildText(_stripLeadingBasmala(entry.text))
-              : null,
-        ));
-      } else if (entry.header != null) {
-        // Single section — render flat as before
+      // Every sub-hizb gets a plain heading; the framed card read as clutter.
+      if (entry.header != null) {
         parts.add(_buildSectionHeader(entry.header!));
-        if (entry.text.isNotEmpty) {
-          parts.add(buildText(_stripLeadingBasmala(entry.text)));
-        }
-      } else {
-        // Text before any section header
-        if (entry.text.isNotEmpty) {
-          parts.add(buildText(_stripLeadingBasmala(entry.text)));
-        }
+      }
+      if (entry.text.isNotEmpty) {
+        final body = _stripLeadingBasmala(entry.text);
+        if (body.length != entry.text.length) parts.add(_basmala());
+        parts.add(buildText(body));
       }
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: parts,
-    );
-  }
-
-  /// Inner framed card for sub-ahzab (e.g. الرزق, الحراسة, العفو)
-  /// Matches the same ornamental style as the outer frame used for single ahzab
-  Widget _buildInnerSectionCard({required String title, Widget? body}) {
-    final accent = isDark ? AppColors.gold : AppColors.emeraldGreen;
-    final accentSoft = accent.withValues(alpha: isDark ? 0.18 : 0.12);
-    final accentFaint = accent.withValues(alpha: isDark ? 0.08 : 0.05);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: accent.withValues(alpha: isDark ? 0.04 : 0.02),
-              blurRadius: 16,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(19),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            ),
-            child: Stack(
-              children: [
-                // Subtle radial glow at top
-                Positioned(
-                  top: -60, left: 0, right: 0, height: 200,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.topCenter,
-                        radius: 1.2,
-                        colors: [
-                          accent.withValues(alpha: isDark ? 0.06 : 0.03),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Left side ornamental border
-                Positioned(top: 0, bottom: 0, left: 0,
-                  child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
-                ),
-                // Right side ornamental border
-                Positioned(top: 0, bottom: 0, right: 0,
-                  child: RepaintBoundary(child: _sideOrnament(accent, isDark)),
-                ),
-                // Corner ornaments
-                for (final corner in _Corner.values)
-                  Positioned(
-                    top: corner.isTop ? 0 : null,
-                    bottom: corner.isTop ? null : 0,
-                    left: corner.isLeft ? 0 : null,
-                    right: corner.isLeft ? null : 0,
-                    child: RepaintBoundary(
-                      child: SizedBox(
-                        width: 36, height: 36,
-                        child: CustomPaint(
-                          painter: _CornerPainter(
-                            color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
-                            corner: corner,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                // Main content column
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Top ornamental band with section title
-                    _ornamentalBand(accent, accentSoft, accentFaint,
-                        label: title),
-
-                    // Inner frame with content
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        border: Border.symmetric(
-                          vertical: BorderSide(color: accentFaint, width: 1),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: fontSize > 24 ? 4.0 : 10.0,
-                          vertical: 20,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [_basmala(), if (body != null) body],
-                        ),
-                      ),
-                    ),
-
-                    // Bottom ornamental band
-                    _ornamentalBand(accent, accentSoft, accentFaint),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1018,119 +804,6 @@ class _MiniStarPainter extends CustomPainter {
     }
     path.close();
     canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Paints decorative corner flourish (L-shape with curves)
-enum _Corner { topLeft, topRight, bottomLeft, bottomRight }
-
-extension on _Corner {
-  bool get isTop => this == _Corner.topLeft || this == _Corner.topRight;
-  bool get isLeft => this == _Corner.topLeft || this == _Corner.bottomLeft;
-}
-
-class _CornerPainter extends CustomPainter {
-  final Color color;
-  final _Corner corner;
-  _CornerPainter({required this.color, required this.corner});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    final w = size.width;
-    final h = size.height;
-
-    canvas.save();
-
-    // Rotate depending on corner
-    switch (corner) {
-      case _Corner.topLeft:
-        break; // default orientation
-      case _Corner.topRight:
-        canvas.translate(w, 0);
-        canvas.scale(-1, 1);
-        break;
-      case _Corner.bottomLeft:
-        canvas.translate(0, h);
-        canvas.scale(1, -1);
-        break;
-      case _Corner.bottomRight:
-        canvas.translate(w, h);
-        canvas.scale(-1, -1);
-        break;
-    }
-
-    // Draw an L-shaped arc flourish
-    final path = Path();
-    // Outer L
-    path.moveTo(4, 24);
-    path.quadraticBezierTo(4, 4, 24, 4);
-    canvas.drawPath(path, paint);
-
-    // Inner L (smaller)
-    final inner = Path();
-    inner.moveTo(8, 18);
-    inner.quadraticBezierTo(8, 8, 18, 8);
-    canvas.drawPath(inner, paint..strokeWidth = 1.0);
-
-    // Small dot at corner
-    canvas.drawCircle(
-      const Offset(6, 6),
-      1.5,
-      Paint()..color = color..style = PaintingStyle.fill,
-    );
-
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Paints a thin vertical line with periodic diamond dots
-class _SideBorderPainter extends CustomPainter {
-  final Color color;
-  final Color dotColor;
-  _SideBorderPainter({required this.color, required this.dotColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0;
-
-    final cx = size.width / 2;
-
-    // Vertical line
-    canvas.drawLine(
-      Offset(cx, 20),
-      Offset(cx, size.height - 20),
-      linePaint,
-    );
-
-    // Diamond dots every 50px
-    final dotPaint = Paint()
-      ..color = dotColor
-      ..style = PaintingStyle.fill;
-
-    final diamondSize = 2.5;
-    for (double y = 50; y < size.height - 40; y += 50) {
-      final path = Path()
-        ..moveTo(cx, y - diamondSize)
-        ..lineTo(cx + diamondSize, y)
-        ..lineTo(cx, y + diamondSize)
-        ..lineTo(cx - diamondSize, y)
-        ..close();
-      canvas.drawPath(path, dotPaint);
-    }
   }
 
   @override
