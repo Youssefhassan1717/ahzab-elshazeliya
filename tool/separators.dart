@@ -19,10 +19,6 @@ void main(List<String> args) {
 
   for (var b = blocks.length - 1; b >= 0; b--) {
     var c = blocks[b].group(1)!;
-    if (ids[b] == 'ad3eya') {
-      rows.add('${ids[b].padRight(18)} left as it is');
-      continue;
-    }
 
     final kept = <String>[];
     c = c.replaceAllMapped(
@@ -34,15 +30,13 @@ void main(List<String> args) {
     latin += RegExp(',').allMatches(c).length;
     c = c.replaceAll(',', '\u060C');
 
-    // A comma against a Qur'anic block was standing in for a separator.
-    var before = c;
-    c = c.replaceAll(RegExp('\\s*\u060C\\s*(?=\u0001)'), ' \u06DE ');
-    c = c.replaceAllMapped(
-        RegExp('(\u0001\\d+\u0001)\\s*\u060C\\s*'), (m) => '${m[1]} \u06DE ');
-    if (c != before) promoted++;
+    // The mushaf face draws a comma as a small ring, so beside the rosette it
+    // reads as a second, broken separator. There is only one separator.
+    promoted += RegExp('\u060C').allMatches(c).length;
+    c = c.replaceAll('\u060C', ' \u06DE ');
 
     // Two Qur'anic blocks with nothing between them still need a separator.
-    before = c;
+    final before = c;
     c = c.replaceAllMapped(
         RegExp('(\u0001\\d+\u0001)\\s*(?=\u0001\\d+\u0001)'),
         (m) => '${m[1]} \u06DE ');
@@ -52,23 +46,23 @@ void main(List<String> args) {
     c = c.replaceAllMapped(
         RegExp('(\\s)([\u064B-\u0652\u0670]+)([\u0621-\u064A])'),
         (m) => '${m[1]}${m[3]}${m[2]}');
-    // One with no letter after it belongs to nothing at all.
+    // A mark stranded after a separator belongs to nothing at all.
     c = c.replaceAllMapped(
-        RegExp('(^|[\u06DE\u060C])\\s*[\u064B-\u0652\u0670]+'), (m) => m[1]!);
+        RegExp('(^|[\u06DE])\\s*[\u064B-\u0652\u0670]+'), (m) => m[1]!);
 
     // A comma next to a separator is the same pause written twice, and a run
     // of separators is still one pause. Collapse both before spacing them.
-    c = c.replaceAll(RegExp('[\u06DE\u060C\\s]*\u06DE[\u06DE\u060C\\s]*'), '\u06DE');
-    c = c.replaceAll(RegExp('\\s*\u06DE\\s*'), ' \u06DE ');
-    c = c.replaceAll(RegExp('\\s*\u060C\\s*'), '\u060C ');
-    c = c.replaceAll(RegExp('\\s*\u061B\\s*'), '\u061B ');
-    c = c.replaceAll(RegExp('\\s*:\\s*'), ': ');
+    // Spacing works on spaces alone: hizb al-ad3eya's paragraph breaks are
+    // meaningful and must survive.
+    c = c.replaceAll(RegExp('[\u06DE \t]*\u06DE[\u06DE \t]*'), '\u06DE');
+    c = c.replaceAll(RegExp('[ \t]*\u06DE[ \t]*'), ' \u06DE ');
+    c = c.replaceAll(RegExp('[ \t]*:[ \t]*'), ': ');
     c = c.replaceAllMapped(RegExp(r'\{\s*([^}]*?)\s*\}'), (m) => '{ ${m[1]} }');
     c = c.replaceAllMapped(RegExp(r'\(\s*([^)]*?)\s*\)'), (m) => '( ${m[1]} )');
     c = c.replaceAllMapped(RegExp(r'\[\s*([^\]]*?)\s*\]'), (m) => '[ ${m[1]} ]');
     c = c.replaceAll(RegExp(' {2,}'), ' ');
-    c = c.replaceAll(RegExp('^[\\s\u06DE\u060C]+'), '');
-    c = c.replaceAll(RegExp('[\\s\u06DE\u060C]+\$'), '');
+    c = c.replaceAll(RegExp('^[\\s\u06DE]+'), '');
+    c = c.replaceAll(RegExp('[\\s\u06DE]+\$'), '');
     c = c.trim();
     respaced++;
 
@@ -77,11 +71,10 @@ void main(List<String> args) {
     }
 
     final marks = RegExp('\u06DE').allMatches(c).length;
-    final commas = RegExp('\u060C').allMatches(c).length;
-    final bad = RegExp('[^ ]\u06DE|\u06DE[^ ]').allMatches(c).length +
-        RegExp(' \u060C').allMatches(c).length;
+    final left = RegExp('\u060C').allMatches(c).length;
+    final bad = RegExp('[^ ]\u06DE|\u06DE[^ ]').allMatches(c).length;
     rows.add('${ids[b].padRight(18)} \u06DE $marks'.padRight(28) +
-        '\u060C $commas'.padRight(10) +
+        (left == 0 ? '' : 'COMMAS LEFT: $left  ') +
         (bad == 0 ? 'spacing ok' : 'STILL WRONG: $bad'));
 
     text = text.substring(0, blocks[b].start) +
@@ -93,7 +86,7 @@ void main(List<String> args) {
   for (final r in rows.reversed) {
     stdout.writeln(r);
   }
-  stdout.writeln('\nlatin commas folded: $latin, commas promoted to separators '
-      'in $promoted ahzab, separators inserted in $inserted, respaced $respaced'
+  stdout.writeln('\nlatin commas folded: $latin, commas turned into separators: '
+      '$promoted, separators inserted in $inserted ahzab, respaced $respaced'
       '${apply ? " - applied" : " - dry run"}');
 }
