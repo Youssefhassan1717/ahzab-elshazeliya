@@ -9,7 +9,10 @@ void main(List<String> args) {
   final byName = <String, int>{};
   quran.forEach((n, s) => byName[s.name] = n);
 
-  final file = File('lib/data/ahzab_data.dart');
+  final target = args
+      .firstWhere((a) => a.startsWith('--file='), orElse: () => '')
+      .replaceFirst('--file=', '');
+  final file = File(target.isEmpty ? 'lib/data/ahzab_data.dart' : target);
   var text = file.readAsStringSync();
   final ids =
       RegExp(r"id: '([a-z0-9_]+)'").allMatches(text).map((m) => m.group(1)!).toList();

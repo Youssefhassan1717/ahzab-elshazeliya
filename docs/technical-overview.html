@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ahzab al-Shadhili — Technical Documentation</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Calibri", sans-serif;
+    font-size: 10.2pt; line-height: 1.5; color: #1c2b22; margin: 0;
+  }
+  .cover {
+    height: 247mm; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+    page-break-after: always; border-top: 6px solid #0F6B3E;
+  }
+  .cover .mark { font-size: 46pt; color: #C8A96E; margin-bottom: 4mm; }
+  .cover h1 { font-size: 30pt; margin: 0 0 3mm; color: #0A5C32; letter-spacing: -.5px; }
+  .cover .ar { font-size: 22pt; color: #143A26; margin: 0 0 8mm; direction: rtl; }
+  .cover .sub { font-size: 12pt; color: #6B6B6B; }
+  .cover .meta { margin-top: 16mm; font-size: 9.5pt; color: #6B6B6B; line-height: 1.9; }
+  .cover .rule { width: 70mm; height: 2px; background: #C8A96E; margin: 6mm 0; }
+
+  h2 {
+    font-size: 15pt; color: #0F6B3E; margin: 9mm 0 3mm;
+    padding-bottom: 1.5mm; border-bottom: 1.5px solid #C8A96E;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; color: #0A5C32; margin: 5mm 0 2mm; page-break-after: avoid; }
+  h4 { font-size: 10.2pt; color: #143A26; margin: 4mm 0 1.5mm; page-break-after: avoid; }
+  p  { margin: 0 0 2.5mm; text-align: justify; }
+  ul, ol { margin: 0 0 3mm; padding-right: 0; padding-left: 5mm; }
+  li { margin-bottom: 1.2mm; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 2mm 0 4mm;
+    font-size: 9.2pt; page-break-inside: avoid;
+  }
+  th {
+    background: #0F6B3E; color: #fff; text-align: left;
+    padding: 1.8mm 2.2mm; font-weight: 600;
+  }
+  td { padding: 1.6mm 2.2mm; border-bottom: 1px solid #dfe8e2; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6faf7; }
+
+  code, .mono {
+    font-family: "Cascadia Mono", "Consolas", monospace;
+    font-size: 8.8pt; background: #eef4f0; padding: 0.3mm 1mm;
+    border-radius: 2px; color: #0A5C32;
+  }
+  pre {
+    background: #12251a; color: #d8ece0; padding: 3mm; border-radius: 3px;
+    font-family: "Cascadia Mono", "Consolas", monospace; font-size: 8.4pt;
+    line-height: 1.45; overflow: hidden; page-break-inside: avoid;
+    margin: 2mm 0 4mm;
+  }
+  pre .c { color: #7fa890; }
+  pre .k { color: #C8A96E; }
+
+  .ar { direction: rtl; font-family: "Traditional Arabic", "Amiri", serif; }
+  .note {
+    background: #f4f9f5; border-left: 3px solid #C8A96E;
+    padding: 2.5mm 3mm; margin: 2mm 0 4mm; font-size: 9.4pt;
+    page-break-inside: avoid;
+  }
+  .note b { color: #0A5C32; }
+  .grid2 { display: flex; gap: 5mm; }
+  .grid2 > div { flex: 1; }
+  .pill {
+    display: inline-block; background: #0F6B3E; color: #fff;
+    border-radius: 9px; padding: 0.4mm 2mm; font-size: 8pt; margin-left: 1mm;
+  }
+  .pagebreak { page-break-before: always; }
+  footer { font-size: 8.5pt; color: #9aa8a0; text-align: center; margin-top: 8mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="mark">&#x06DE;</div>
+  <h1>Ahzab al-Shadhili</h1>
+  <div class="ar">أحزاب الإمام أبي الحسن الشاذلي</div>
+  <div class="rule"></div>
+  <div class="sub">Technical Documentation &amp; Architecture Overview</div>
+  <div class="meta">
+    Flutter&nbsp;/&nbsp;Dart &middot; Android<br>
+    Package <span class="mono">com.ahzab.ahzab_app</span> &middot; version 1.0.0+1<br>
+    github.com/Youssefhassan1717/ahzab-elshazeliya<br>
+    September 2026
+  </div>
+</div>
+
+<h2>1. What the Application Is</h2>
+<p>
+A native Android reading application for the twenty-two <span class="ar">أحزاب</span> (litanies)
+of Imam Abu al-Hasan al-Shadhili. It is a <em>typographic</em> application first and a data
+application second: the difficulty is not storing the text but setting classical Arabic
+devotional prose so that it reads the way it does in a printed <span class="ar">مصحف</span>-quality
+edition — justified without ragged gaps, with Qur'anic quotations distinguished from the
+supplications that surround them.
+</p>
+<p>
+The corpus is fixed and ships inside the binary. There is no backend, no account,
+no network dependency at runtime. Everything — search, bookmarks, favourites, theming —
+runs offline against a single in-memory dataset.
+</p>
+
+<table>
+  <tr><th>Property</th><th>Value</th></tr>
+  <tr><td>Content</td><td>22 ahzab, 131,872 characters of vocalised Arabic</td></tr>
+  <tr><td>Qur'anic passages identified</td><td>131 blocks, typeset in Uthmanic script with ayah numbers</td></tr>
+  <tr><td>Repeated passages marked</td><td>18 (36 markers, nestable)</td></tr>
+  <tr><td>Release artefact</td><td>~21.3&nbsp;MB APK, <span class="mono">android-arm64</span></td></tr>
+  <tr><td>Runtime dependencies</td><td>None — fully offline</td></tr>
+</table>
+
+<h2>2. Feature Set</h2>
+
+<h3>2.1 Reading</h3>
+<ul>
+  <li><b>Mushaf typography.</b> The whole corpus is set in KFGQPC Uthmanic Hafs, the
+      typeface used for printed Qur'ans, at a 0.95&times; optical size and 2.15 line height.</li>
+  <li><b>Kashida justification.</b> Lines are justified by elongating letters
+      (<span class="ar">تطويل</span>) rather than stretching word spaces — the correct
+      typographic behaviour for Arabic. See &sect;5.</li>
+  <li><b>Pinch to zoom.</b> Continuous font scaling with exponential damping;
+      double-tap restores the default. Justification is suspended mid-gesture and
+      recomputed on release.</li>
+  <li><b>Qur'anic distinction.</b> Detected verses are drawn inside ornate brackets
+      <span class="ar">&#xFD3F; &#xFD3E;</span> with per-ayah rosette numerals, and
+      referenced by sura and verse.</li>
+  <li><b>Repetition marking.</b> Passages the litany asks the reader to repeat appear in
+      gold brackets, followed by the count — <span class="ar">{ ثلاثاً }</span> — with the
+      numeral itself picked out in gold.</li>
+  <li><b>Unified separator.</b> Every du'a boundary uses <span class="ar">&#x06DE;</span>
+      (rub-el-hizb), replacing the asterisks the source text used.</li>
+</ul>
+
+<h3>2.2 Navigation and personalisation</h3>
+<ul>
+  <li><b>Diacritic-insensitive search.</b> Query and corpus are both normalised, so
+      <span class="ar">الرحمن</span> matches <span class="ar">الرَّحْمَـٰنِ</span>.
+      Matches are highlighted in place with circular previous/next navigation.</li>
+  <li><b>Bookmarks.</b> Anchored by chunk index plus an exact character range, so they
+      survive font-size changes and kashida re-justification.</li>
+  <li><b>Favourites.</b> Up to five pinned ahzab, shown in their own section.</li>
+  <li><b>Light and dark themes</b> with an animated 250&nbsp;ms transition.</li>
+</ul>
+
+<h2>3. Technology Stack</h2>
+
+<table>
+  <tr><th>Layer</th><th>Choice</th><th>Notes</th></tr>
+  <tr><td>Language</td><td>Dart, SDK <span class="mono">^3.11.1</span></td><td>Null-safe, records and pattern matching used throughout</td></tr>
+  <tr><td>Framework</td><td>Flutter, Material 3</td><td><span class="mono">useMaterial3: true</span>, colour scheme seeded from the brand green</td></tr>
+  <tr><td>State management</td><td><span class="mono">provider ^6.1.2</span></td><td>Three <span class="mono">ChangeNotifier</span> providers; no global singletons for UI state</td></tr>
+  <tr><td>Persistence</td><td><span class="mono">shared_preferences ^2.3.4</span></td><td>Theme, favourites, bookmarks. No database</td></tr>
+  <tr><td>Monetisation</td><td><span class="mono">google_mobile_ads ^5.3.0</span></td><td>Adaptive banner, interstitial, rewarded</td></tr>
+  <tr><td>Linting</td><td><span class="mono">flutter_lints ^6.0.0</span></td><td></td></tr>
+  <tr><td>Testing</td><td><span class="mono">flutter_test</span></td><td>Layout-invariant tests over the real corpus</td></tr>
+  <tr><td>Build toolchain</td><td>Gradle KTS, JVM 17</td><td><span class="mono">com.ahzab.ahzab_app</span></td></tr>
+</table>
+
+<h3>3.1 Typefaces</h3>
+<table>
+  <tr><th>Family</th><th>Role</th></tr>
+  <tr><td>KFGQPC Uthmanic Hafs</td><td>Body text of every hizb and all Qur'anic passages</td></tr>
+  <tr><td>Amiri (Regular, Bold)</td><td>Headings, ornaments, bracket glyphs</td></tr>
+  <tr><td>Scheherazade New (4 weights)</td><td>Interface body text</td></tr>
+  <tr><td>Aref Ruqaa, El Messiri, Reem Kufi, Cairo, Rakkas</td><td>Display and decorative use</td></tr>
+</table>
+
+<h2 class="pagebreak">4. Architecture</h2>
+
+<p>
+The project follows a flat, feature-oriented layout. There is no service locator and no
+repository abstraction — the dataset is a compile-time constant, so indirection would buy
+nothing.
+</p>
+
+<pre><span class="c">lib/</span>
+  main.dart            <span class="c">// binding init, runApp</span>
+  app.dart             <span class="c">// MultiProvider, themes, RTL Directionality</span>
+  <span class="k">core/</span>
+    kashida.dart              <span class="c">// Arabic justification engine  (265 lines)</span>
+    arabic_normalizer.dart    <span class="c">// diacritic folding + match mapping (171)</span>
+    smooth_scroll_physics.dart
+    theme/  app_colors.dart, app_theme.dart
+  <span class="k">data/</span>
+    ahzab_data.dart           <span class="c">// the corpus, with inline markup  (254)</span>
+  <span class="k">models/</span>      hizb_part.dart
+  <span class="k">providers/</span>   theme_ / favorites_ / bookmarks_provider.dart
+  <span class="k">screens/</span>
+    intro/    intro_screen.dart      <span class="c">// (720)</span>
+    home/     home_screen.dart + 3 widgets
+    detail/   detail_screen.dart     <span class="c">// (1415)</span>
+              widgets/content_body.dart  <span class="c">// the renderer (1182)</span>
+    about/, support/
+  <span class="k">services/</span>    ads_bootstrap.dart, interstitial_, rewarded_ad_service.dart
+  <span class="k">widgets/</span>     ad_banner.dart, animated_list_item.dart, islamic_icon.dart
+
+<span class="c">tool/</span>   17 offline Dart scripts — corpus analysis and correction
+<span class="c">test/</span>  3 test files</pre>
+
+<h3>4.1 State</h3>
+<table>
+  <tr><th>Provider</th><th>Holds</th><th>Preference key</th></tr>
+  <tr><td><span class="mono">ThemeProvider</span></td><td>Light/dark mode</td><td><span class="mono">theme_mode</span></td></tr>
+  <tr><td><span class="mono">FavoritesProvider</span></td><td>Set of hizb ids, max 5</td><td><span class="mono">favorites_v3</span></td></tr>
+  <tr><td><span class="mono">BookmarksProvider</span></td><td>Bookmarks per hizb, lazily loaded and cached in memory</td><td><span class="mono">bookmarks_v1_&lt;hizbId&gt;</span></td></tr>
+</table>
+
+<h3>4.2 The data model</h3>
+<pre>class HizbPart {
+  final String id;        <span class="c">// 'bahr', 'barr', 'lutf', …</span>
+  final String title;     <span class="c">// حزب البحر</span>
+  final String? subtitle;
+  final String content;   <span class="c">// vocalised Arabic + inline markup</span>
+}</pre>
+
+<h2>5. The Kashida Justifier</h2>
+<p>
+Arabic is not justified by widening spaces. It is justified by <em>elongating the
+connecting strokes between letters</em> — inserting <span class="mono">U+0640</span>
+(tatweel). Flutter has no such facility, so the app implements it.
+</p>
+
+<h3>5.1 Algorithm</h3>
+<ol>
+  <li>Lay the paragraph out once with a <span class="mono">TextPainter</span> and read back
+      the line boxes.</li>
+  <li>For each line that is neither the last of its paragraph nor under the fill threshold,
+      measure the shortfall against the column width.</li>
+  <li>Enumerate legal elongation spots — positions between a forward-joining letter and a
+      letter that accepts a join. Elongation is only valid where the script actually connects.</li>
+  <li>Distribute tatweels across those spots by iterative measurement, respecting per-spot
+      and per-word caps so no single word absorbs a whole line's slack.</li>
+  <li>Emit an offset table alongside the new string so any index in the source can be mapped
+      into the justified text.</li>
+</ol>
+
+<h3>5.2 Why the offset table matters</h3>
+<div class="note">
+  Bookmarks, search highlights and the Qur'an/repeat styling are all <b>character ranges</b>.
+  Inserting tatweel shifts every index after the insertion point — and the number inserted
+  changes with font size and screen width. Without <span class="mono">KashidaText.mapIndex</span>,
+  a bookmark would drift every time the reader zoomed. This was the root cause of an early
+  bug where brackets appeared to detach from the passages they enclosed.
+</div>
+
+<h3>5.3 Tuning</h3>
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Purpose</th></tr>
+  <tr><td><span class="mono">_minFillRatio</span></td><td>0.55</td><td>Below this, a line is treated as end-of-paragraph and left ragged</td></tr>
+  <tr><td><span class="mono">_maxPerSpot</span></td><td>2</td><td>Ceiling on elongation at any single join</td></tr>
+  <tr><td><span class="mono">_maxPerWord</span></td><td>4</td><td>Stops one word swallowing the line's slack</td></tr>
+  <tr><td><span class="mono">_cacheLimit</span></td><td>32</td><td>LRU keyed on text, size, family, letter spacing, width</td></tr>
+</table>
+
+<h2 class="pagebreak">6. The Markup Language</h2>
+<p>
+The corpus carries three inline markers. They are stripped before display; each one
+contributes a styled range instead. Using a marker rather than a parallel index table keeps
+the annotation attached to the text through every edit.
+</p>
+
+<table>
+  <tr><th>Marker</th><th>Meaning</th><th>Rendered as</th><th>Count</th></tr>
+  <tr><td><span class="mono">&sect;Q&sect;ref|text&sect;Q&sect;</span></td><td>Qur'anic passage</td><td>Ornate brackets, mushaf text, ayah rosettes</td><td>131 blocks</td></tr>
+  <tr><td><span class="mono">&sect;B&sect; … &sect;b&sect;</span></td><td>Repeated passage (nestable)</td><td>Gold round brackets</td><td>18 pairs</td></tr>
+  <tr><td><span class="mono">&sect;SECTION&sect;name&sect;SECTION&sect;</span></td><td>Sub-hizb heading</td><td>Ornamental band with a centred label</td><td>5</td></tr>
+</table>
+
+<h3>6.1 Rendering pipeline</h3>
+<pre>raw content
+   │  collapse blank lines / runs of spaces
+   ▼
+_parseMarkup ──▶ plain text  +  four range lists
+   │                             (verses, frames, inner frames, ornaments)
+   ▼
+KashidaJustifier.resolve(text, style, width, skipRanges:)
+   │  ── returns justified text + offset table
+   ▼
+remap every range through KashidaText.mapIndex
+   │
+   ▼
+flatten overlapping layers into disjoint spans
+   │  outer → inner, later layers merged over earlier
+   ▼
+TextSpan tree  ──▶  RichText</pre>
+
+<div class="note">
+  <b>Layer flattening.</b> A Qur'anic verse can sit inside a repeated passage, which can sit
+  inside another repeat, and a repeat count may overlap both. Naively applying the ranges in
+  order loses the inner style. The renderer therefore collects every range boundary, walks the
+  resulting elementary intervals, and merges the styles that cover each one — so a verse keeps
+  its mushaf face even when nested two levels deep.
+</div>
+
+<h2>7. Qur'an Detection</h2>
+<p>
+The Qur'anic quotations in the source were unmarked, unvocalised inconsistently, and spelled
+in modern orthography rather than the mushaf's <span class="ar">رسم</span>. An offline tool
+(<span class="mono">tool/mark_quran.dart</span>) locates them against the full text of the
+Qur'an and rewrites each one from the mushaf.
+</p>
+
+<h3>7.1 Method</h3>
+<ol>
+  <li><b>Corpus.</b> All 6,236 ayat are fetched once and cached
+      (<span class="mono">tool/quran.json</span>). Basmala prefixes on the first ayah of each
+      sura are stripped, as are standalone pause marks.</li>
+  <li><b>Seed index.</b> Every 4-gram of the Qur'an is indexed by its <em>consonantal
+      skeleton</em> — long vowels removed for words above three letters. This is what lets
+      <span class="ar">السماوات</span> in the litany find <span class="ar">السموت</span> in
+      the mushaf.</li>
+  <li><b>Expansion.</b> A seed grows outward while each pair of words is
+      &ldquo;the same word&rdquo; under a bounded Levenshtein distance (1 for short words,
+      2 otherwise).</li>
+  <li><b>Snap to ayah boundaries.</b> The span is trimmed to the largest range of
+      <em>complete</em> ayat it contains. Half-quoted verses are deliberately left as plain
+      text.</li>
+  <li><b>Merge and bridge.</b> Adjacent runs of the same sura are merged; a short ayah lying
+      between two matches is bridged if the intervening words check out.</li>
+  <li><b>Rewrite.</b> The matched region is replaced with the mushaf text plus per-ayah
+      numerals, wrapped in a <span class="mono">&sect;Q&sect;</span> marker.</li>
+</ol>
+
+<h3>7.2 Failure modes that were found and fixed</h3>
+<table>
+  <tr><th>Defect</th><th>Effect</th></tr>
+  <tr><td>Standalone waqf marks (<span class="ar">&#x06D6;</span>) treated as words</td><td>Every passage crossing one stopped dead — the single largest cause of missed verses</td></tr>
+  <tr><td>Hamza-above (<span class="mono">U+0654</span>) not folded</td><td>Words such as <span class="ar">بِـَٔايٰتِنا</span> never matched</td></tr>
+  <tr><td>Exact-match seeding</td><td>Rasm/orthography differences broke matching before expansion could start</td></tr>
+  <tr><td>Backward-only expansion</td><td>Cursor failed to advance — infinite loop</td></tr>
+  <tr><td>Spans crossing an existing marker</td><td>Rewriting would have deleted the marker; such spans now shrink or are skipped</td></tr>
+</table>
+
+<div class="note">
+  <b>Result.</b> Coverage rose from 32 marked passages to <b>131</b>. Roughly 108 quotations
+  remain unmarked by design: they are partial verses, or verses quoted without their narrative
+  opening (<span class="ar">قال</span>), and the project's rule is that only complete ayat are
+  presented as Qur'an.
+</div>
+
+<h2 class="pagebreak">8. Screens</h2>
+<table>
+  <tr><th>Screen</th><th>Behaviour</th></tr>
+  <tr><td><b>Intro</b><br><span class="mono">720 lines</span></td>
+      <td>Staggered entrance animation — basmala, ornamental rules, title, du'a — over roughly
+          3.7&nbsp;s, then hands off to Home. Four controllers drive fade, stagger, a slow
+          decorative loop and the exit.</td></tr>
+  <tr><td><b>Home</b><br><span class="mono">338 lines</span></td>
+      <td>Favourites section above the full list. Search debounced at 250&nbsp;ms and matched
+          against normalised titles and full text, with a per-card match count. Ad
+          initialisation is deferred to the first post-frame callback.</td></tr>
+  <tr><td><b>Detail</b><br><span class="mono">1,415 lines</span></td>
+      <td>The reader. Content is split on section markers into keyed chunks. Base font size is
+          derived from device width (24&nbsp;pt at 411&nbsp;dp, clamped 22–34) and pinch scaling
+          is clamped 10–44&nbsp;pt. Search results scroll to 35&nbsp;% of the viewport; the app
+          bar hides on scroll and snaps at the edges.</td></tr>
+  <tr><td><b>About</b></td><td>Biography of the Imam and a description of the collection.</td></tr>
+  <tr><td><b>Support</b></td><td>Optional rewarded-ad flow for readers who wish to support the app.</td></tr>
+</table>
+
+<h3>8.1 Performance work</h3>
+<ul>
+  <li><b>Ad SDK initialisation moved off startup.</b> <span class="mono">MobileAds.initialize()</span>
+      spins up a WebView on the Android UI thread; called from <span class="mono">main()</span>
+      it stalled the intro animation. It now runs from Home's first post-frame callback.</li>
+  <li><b>Full-screen compositing layers removed.</b> Three stacked
+      <span class="mono">Opacity</span> layers and an animated full-screen radial gradient were
+      deleted from the intro.</li>
+  <li><b>Justification suspended during gestures.</b> The kashida pass is far too heavy to
+      repeat per frame, so an identity transform is used while a pinch is in flight.</li>
+</ul>
+
+<h2>9. Offline Tooling</h2>
+<p>
+Seventeen Dart scripts under <span class="mono">tool/</span> operate on the corpus. They are
+deliberately Dart rather than shell: PowerShell silently corrupted Unicode escapes in
+replacement strings during early work, writing literal <span class="mono">\u060C</span>
+sequences into the text.
+</p>
+
+<table>
+  <tr><th>Script</th><th>Purpose</th></tr>
+  <tr><td><span class="mono">fetch_quran.dart</span></td><td>Downloads and caches all 6,236 ayat</td></tr>
+  <tr><td><span class="mono">mark_quran.dart</span> <span class="pill">397 lines</span></td><td>The detector described in &sect;7</td></tr>
+  <tr><td><span class="mono">quran_coverage.dart</span></td><td>Reports near-complete quotations that remain unmarked</td></tr>
+  <tr><td><span class="mono">why.dart</span></td><td>Diagnostic — replays seeding and expansion for one passage</td></tr>
+  <tr><td><span class="mono">audit.dart</span></td><td>Finds stray brackets, blank lines, split words, repeat labels</td></tr>
+  <tr><td><span class="mono">tidy.dart</span></td><td>Applies corpus-wide corrections: word joining, separator unification</td></tr>
+  <tr><td><span class="mono">corrections.dart</span></td><td>Targeted edits, including quoting named passages in full</td></tr>
+  <tr><td><span class="mono">check_markers.dart</span></td><td>Marker integrity — balance and absence of illegal nesting</td></tr>
+  <tr><td><span class="mono">frame_repeats.dart</span>, <span class="mono">reframe.dart</span>, <span class="mono">nest_barr.dart</span></td><td>Repeat-marker construction</td></tr>
+  <tr><td><span class="mono">dump_hizb.dart</span>, <span class="mono">slice.dart</span>, <span class="mono">find.dart</span></td><td>Inspection helpers for a file whose lines run to tens of thousands of characters</td></tr>
+</table>
+
+<h2>10. Testing</h2>
+<table>
+  <tr><th>Test</th><th>Assertion</th></tr>
+  <tr><td><span class="mono">kashida_test.dart</span></td>
+      <td>Tatweel insertion preserves the source; short strings are left untouched;
+          mapped ranges still bracket the same word</td></tr>
+  <tr><td><span class="mono">kashida_width_test.dart</span></td>
+      <td>Across <b>all 22 ahzab</b>, no justified token exceeds a 360&nbsp;dp column.
+          This test caught a real defect — a 432&nbsp;px token produced by unbounded
+          per-word elongation</td></tr>
+  <tr><td><span class="mono">widget_test.dart</span></td><td>Smoke test on app start-up</td></tr>
+</table>
+<p>
+Static analysis runs clean of errors across <span class="mono">lib/</span>.
+</p>
+
+<h2>11. Build and Release</h2>
+<pre>flutter build apk --release --target-platform android-arm64
+  ↳ build/app/outputs/flutter-apk/app-release.apk   ~21.3 MB
+  ↳ copied to releases/  and committed
+  ↳ git push  →  distributed as a raw GitHub URL</pre>
+<table>
+  <tr><th>Setting</th><th>Value</th></tr>
+  <tr><td>Application id</td><td><span class="mono">com.ahzab.ahzab_app</span></td></tr>
+  <tr><td>Version</td><td>1.0.0+1</td></tr>
+  <tr><td>Java / JVM target</td><td>17</td></tr>
+  <tr><td>SDK levels</td><td>Flutter defaults (<span class="mono">flutter.minSdkVersion</span> etc.)</td></tr>
+  <tr><td>Icon tree-shaking</td><td>Material icons reduced 1,645&nbsp;KB → 4.5&nbsp;KB (99.7&nbsp;%)</td></tr>
+</table>
+
+<div class="note">
+  <b>Outstanding before store submission.</b> The release build is still signed with the debug
+  keystore — <span class="mono">android/app/build.gradle.kts</span> carries a
+  <span class="mono">TODO</span> to that effect. A release signing config must be added before
+  publishing to Google Play.
+</div>
+
+<h2>12. The Corpus</h2>
+<table>
+  <tr><th>#</th><th>Id</th><th>Title</th><th>#</th><th>Id</th><th>Title</th></tr>
+  <tr><td>1</td><td><span class="mono">bahr</span></td><td class="ar">حزب البحر</td>
+      <td>12</td><td><span class="mono">hijb</span></td><td class="ar">حزب الحجب</td></tr>
+  <tr><td>2</td><td><span class="mono">barr</span></td><td class="ar">حزب البر</td>
+      <td>13</td><td><span class="mono">hifz</span></td><td class="ar">حزب الحفظ</td></tr>
+  <tr><td>3</td><td><span class="mono">lutf</span></td><td class="ar">حزب اللطف</td>
+      <td>14</td><td><span class="mono">hamd</span></td><td class="ar">حزب الحمد</td></tr>
+  <tr><td>4</td><td><span class="mono">wadhifa</span></td><td class="ar">الوظيفة الشاذلية</td>
+      <td>15</td><td><span class="mono">khalwa</span></td><td class="ar">حزب الخلوة</td></tr>
+  <tr><td>5</td><td><span class="mono">ikhfa</span></td><td class="ar">حزب الإخفاء</td>
+      <td>16</td><td><span class="mono">sawn</span></td><td class="ar">حزب الصون</td></tr>
+  <tr><td>6</td><td><span class="mono">shakwa</span></td><td class="ar">حزب الشكوى</td>
+      <td>17</td><td><span class="mono">fath</span></td><td class="ar">حزب الفتح</td></tr>
+  <tr><td>7</td><td><span class="mono">nasr</span></td><td class="ar">حزب النصر</td>
+      <td>18</td><td><span class="mono">falah</span></td><td class="ar">حزب الفلاح</td></tr>
+  <tr><td>8</td><td><span class="mono">ad3eya</span></td><td class="ar">حزب الأدعية</td>
+      <td>19</td><td><span class="mono">kifaya</span></td><td class="ar">حزب الكفاية</td></tr>
+  <tr><td>9</td><td><span class="mono">ishraq</span></td><td class="ar">حزب الإشراق</td>
+      <td>20</td><td><span class="mono">najat</span></td><td class="ar">حزب النجاة</td></tr>
+  <tr><td>10</td><td><span class="mono">ayat</span></td><td class="ar">حزب الآيات</td>
+      <td>21</td><td><span class="mono">nour</span></td><td class="ar">حزب النور</td></tr>
+  <tr><td>11</td><td><span class="mono">tawassul</span></td><td class="ar">حزب التوسُّل</td>
+      <td>22</td><td><span class="mono">rizq_hirasah_afw</span></td><td class="ar">الرزق والحراسة والعفو</td></tr>
+</table>
+
+<h2>13. Design Language</h2>
+<table>
+  <tr><th>Token</th><th>Light</th><th>Dark</th></tr>
+  <tr><td>Accent</td><td><span class="mono">#0F6B3E</span> emerald</td><td><span class="mono">#C8A96E</span> gold</td></tr>
+  <tr><td>Background</td><td><span class="mono">#F8FBF8</span></td><td><span class="mono">#0A1A0F</span></td></tr>
+  <tr><td>Surface</td><td><span class="mono">#FFFFFF</span></td><td><span class="mono">#152A1B</span></td></tr>
+  <tr><td>Primary text</td><td><span class="mono">#143A26</span></td><td><span class="mono">#E8F4EA</span></td></tr>
+  <tr><td>Secondary text</td><td><span class="mono">#6B6B6B</span></td><td><span class="mono">#B0CCBA</span></td></tr>
+</table>
+<p>
+The accent is theme-dependent by design: gold reads as illumination against the dark ground,
+while emerald carries the same emphasis on paper-white without glare. Every accented element —
+Qur'anic brackets, repeat brackets, repeat counts — follows this single token.
+</p>
+
+<footer>Ahzab al-Shadhili &middot; Technical Documentation &middot; September 2026</footer>
+
+</body>
+</html>
