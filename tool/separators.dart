@@ -2,12 +2,16 @@ import 'dart:io';
 
 /// Puts every separator on the same footing: one design, one space either side.
 ///
-/// A comma that leans against a Qur'anic block is not punctuation, it is a
-/// separator the book wrote as a comma - those become \u06DE. A comma inside a
-/// sentence stays a comma; it just gets its spacing fixed.
+/// The mushaf face draws a comma as a small ring, which beside the rosette
+/// reads as a second, broken separator, so commas become \u06DE. Pass --dots to
+/// fold full stops in as well, for prose that is set like the ahzab.
 void main(List<String> args) {
   final apply = args.contains('--apply');
-  final file = File('lib/data/ahzab_data.dart');
+  final dots = args.contains('--dots');
+  final target = args
+      .firstWhere((a) => a.startsWith('--file='), orElse: () => '')
+      .replaceFirst('--file=', '');
+  final file = File(target.isEmpty ? 'lib/data/ahzab_data.dart' : target);
   var text = file.readAsStringSync();
   final ids =
       RegExp(r"id: '([a-z0-9_]+)'").allMatches(text).map((m) => m.group(1)!).toList();
@@ -35,6 +39,17 @@ void main(List<String> args) {
     promoted += RegExp('\u060C').allMatches(c).length;
     c = c.replaceAll('\u060C', ' \u06DE ');
 
+    if (dots) {
+      // A stop that closes a paragraph needs no separator after it, and a run
+      // of dots means "and so on to the end", so neither is touched.
+      final stop = RegExp('(?<!\\.)\\.(?!\\.)');
+      c = c.replaceAll(RegExp('(?<!\\.)\\.(?!\\.)(?=[ \\t\\r]*(\\n|\$))'), '');
+      promoted += stop.allMatches(c).length;
+      c = c.replaceAll(stop, ' \u06DE ');
+      promoted += RegExp('\u061B').allMatches(c).length;
+      c = c.replaceAll('\u061B', ' \u06DE ');
+    }
+
     // Two Qur'anic blocks with nothing between them still need a separator.
     final before = c;
     c = c.replaceAllMapped(
@@ -61,6 +76,8 @@ void main(List<String> args) {
     c = c.replaceAllMapped(RegExp(r'\(\s*([^)]*?)\s*\)'), (m) => '( ${m[1]} )');
     c = c.replaceAllMapped(RegExp(r'\[\s*([^\]]*?)\s*\]'), (m) => '[ ${m[1]} ]');
     c = c.replaceAll(RegExp(' {2,}'), ' ');
+    // A separator that ends a paragraph separates nothing.
+    c = c.replaceAll(RegExp('[ \\t]*\u06DE[ \\t]*(?=\\r?\\n)'), '');
     c = c.replaceAll(RegExp('^[\\s\u06DE]+'), '');
     c = c.replaceAll(RegExp('[\\s\u06DE]+\$'), '');
     c = c.trim();
