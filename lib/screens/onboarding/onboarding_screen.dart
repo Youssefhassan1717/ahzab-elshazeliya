@@ -33,17 +33,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   late final List<_Page> _pages = [
     _Page(
       icon: Icons.spa_rounded,
-      title: 'أَهْلًا بِكَ',
+      title: 'أهلا بك',
       body:
-          'أحزاب سيدي أبي الحسن الشاذلي رضي الله عنه بين يديك، مضبوطةً بالشكل. '
-          'دقيقةٌ واحدة تُعرِّفك على التطبيق.',
+          'أحزاب سيدي أبي الحسن الشاذلي رضي الله عنه بين يديك، مضبوطة بالشكل. '
+          'دقيقة واحدة تعرفك على التطبيق.',
       demo: (active) => WelcomeDemo(active: active),
     ),
     _Page(
       icon: Icons.auto_stories_rounded,
-      title: 'ابْدَأْ بِالْمُقَدِّمَة',
+      title: 'ابدأ بالمقدمة',
       body:
-          'من أيقونة الكتاب في أعلى الشاشة تفتح مقدمة الأحزاب وما يُذكر فيها '
+          'من أيقونة الكتاب في أعلى الشاشة تفتح مقدمة الأحزاب وما يذكر فيها '
           'من آدابها وشروط قراءتها.',
       hintIcon: Icons.dark_mode_rounded,
       hint: 'وبجوارها أيقونة تنقلك بين الوضع الفاتح والداكن.',
@@ -51,9 +51,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
     _Page(
       icon: Icons.search_rounded,
-      title: 'ابْحَثْ فِي كُلِّ الْأَحْزَاب',
+      title: 'ابحث في كل الأحزاب',
       body:
-          'اكتب كلمةً في شريط البحث فتظهر الأحزاب التي وردت فيها مع موضعها. '
+          'اكتب كلمة في شريط البحث فتظهر الأحزاب التي وردت فيها مع موضعها. '
           'وبعد فتح الحزب تتنقل بين المواضع بالسهمين.',
       hintIcon: Icons.lightbulb_outline_rounded,
       hint: 'مثال: اكتب «الفتح» فيظهر لك حزب الفتح.',
@@ -61,17 +61,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
     _Page(
       icon: Icons.pinch_rounded,
-      title: 'حَجْمُ الْخَطِّ بَيْنَ يَدَيْك',
+      title: 'حجم الخط بين يديك',
       body:
-          'باعِد بين إصبعيك على النص ليكبُر الخط، وقرِّبهما ليصغُر. '
+          'باعد بين إصبعيك على النص ليكبر الخط، وقربهما ليصغر. '
           'وانقر نقرتين للعودة إلى الحجم الافتراضي.',
       demo: (active) => ZoomDemo(active: active),
     ),
     _Page(
       icon: Icons.bookmark_add_rounded,
-      title: 'ضَعْ عَلَامَةً عَلَى مَوْضِعِك',
+      title: 'ضع علامة على موضعك',
       body:
-          'اضغط مطولًا على أي كلمة لتحديدها، ثم اختر «علامة مميزة» ليحفظ لك '
+          'اضغط مطولا على أي كلمة لتحديدها، ثم اختر «علامة مميزة» ليحفظ لك '
           'التطبيق الموضع، أو «نسخ» لنسخ النص.',
       hintIcon: Icons.auto_stories_outlined,
       hint: 'وتعود إلى علاماتك من أيقونة الكتاب داخل الحزب.',
@@ -79,10 +79,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
     _Page(
       icon: Icons.favorite_rounded,
-      title: 'أَحْزَابُكَ الْمُمَيَّزَة',
+      title: 'أحزابك المميزة',
       body:
-          'اضغط على القلب ليُثبَّت الحزب في أعلى القائمة تحت «مميز»، '
-          'فتصل إليه سريعًا. ويمكنك تمييز خمسة أحزاب.',
+          'اضغط على القلب ليثبت الحزب في أعلى القائمة تحت «مميز»، '
+          'فتصل إليه سريعا. ويمكنك تمييز خمسة أحزاب.',
       demo: (active) => FavoriteDemo(active: active),
     ),
   ];
@@ -146,7 +146,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Scaffold(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
+        child: Scaffold(
         backgroundColor: isDark
             ? AppColors.darkBackground
             : AppColors.lightBackground,
@@ -276,6 +284,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -344,7 +353,14 @@ class _PageView extends StatelessWidget {
                     offset: Offset(delta * 70, 0),
                     child: Transform.scale(
                       scale: 1 - 0.06 * delta.abs(),
-                      child: page.demo(active),
+                      // Demos are laid out at a fixed width, then shrunk to fit
+                      // whatever height the screen leaves them.
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: SizedBox(width: 300, child: page.demo(active)),
+                        ),
+                      ),
                     ),
                   ),
                 ),

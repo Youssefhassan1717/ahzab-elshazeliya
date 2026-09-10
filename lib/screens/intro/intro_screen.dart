@@ -19,6 +19,7 @@ class _IntroScreenState extends State<IntroScreen>
   late final AnimationController _contentController;   // staggered text entrance (finite)
   late final AnimationController _loopController;      // slow loop: rotation + particles + breathe
   late final AnimationController _exitController;      // exit fade (finite)
+  late final AnimationController _progressController;  // how much of the intro is left
 
   // Background
   late final Animation<double> _bgFade;
@@ -84,6 +85,12 @@ class _IntroScreenState extends State<IntroScreen>
       vsync: this,
     );
 
+    // Matches the pause in _startSequence before it leaves for the next screen.
+    _progressController = AnimationController(
+      duration: const Duration(milliseconds: 3700),
+      vsync: this,
+    );
+
     // ── Background ──
     _bgFade = CurvedAnimation(parent: _bgController, curve: Curves.easeOut);
     _geometryBloom = Tween<double>(begin: 0.3, end: 1.0).animate(
@@ -144,6 +151,7 @@ class _IntroScreenState extends State<IntroScreen>
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     _contentController.forward();
+    _progressController.forward();
 
     // Let the last line settle before leaving.
     await Future.delayed(const Duration(milliseconds: 3700));
@@ -157,6 +165,7 @@ class _IntroScreenState extends State<IntroScreen>
     _contentController.dispose();
     _loopController.dispose();
     _exitController.dispose();
+    _progressController.dispose();
     super.dispose();
   }
 
@@ -191,6 +200,7 @@ class _IntroScreenState extends State<IntroScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final size = MediaQuery.sizeOf(context);
+    final viewPadding = MediaQuery.paddingOf(context);
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -301,6 +311,49 @@ class _IntroScreenState extends State<IntroScreen>
                       ),
                     ),
 
+                    // ── Depth: darkens the edges so the centre reads as lit
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(0, -0.1),
+                              radius: 0.95,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black
+                                    .withValues(alpha: isDark ? 0.45 : 0.05),
+                              ],
+                              stops: const [0.55, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Inset rule + corner brackets, like a bound frontispiece
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: RepaintBoundary(
+                          child: FadeTransition(
+                            opacity: _bgFade,
+                            child: CustomPaint(
+                              painter: _FramePainter(
+                                color: accent,
+                                isDark: isDark,
+                                insets: EdgeInsets.fromLTRB(
+                                  16,
+                                  viewPadding.top + 12,
+                                  16,
+                                  viewPadding.bottom + 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // ── Content
                     Center(
                       child: Padding(
@@ -327,57 +380,26 @@ class _IntroScreenState extends State<IntroScreen>
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 22),
+                            const SizedBox(height: 26),
                             _buildOrnamentLine(_topLineFade, _topLineWidth, accent),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 32),
                             _entrance(
                               _titleFade,
                               _titleSlide,
                               Column(children: [
-                                ShaderMask(
-                                  shaderCallback: (bounds) => LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: isDark
-                                        ? [
-                                            AppColors.darkTextPrimary,
-                                            AppColors.gold.withValues(alpha: 0.85)
-                                          ]
-                                        : [AppColors.emeraldGreen, AppColors.deepGreen],
-                                  ).createShader(bounds),
-                                  child: const Text('أحزاب',
-                                      style: TextStyle(
-                                          fontFamily: 'Amiri',
-                                          fontSize: 62,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                          height: 1.5),
-                                      textAlign: TextAlign.center),
-                                ),
+                                _foilTitle('أحزاب',
+                                    fontSize: 62,
+                                    letterSpacing: 5,
+                                    isDark: isDark),
                                 const SizedBox(height: 6),
-                                ShaderMask(
-                                  shaderCallback: (bounds) => LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: isDark
-                                        ? [
-                                            AppColors.gold.withValues(alpha: 0.9),
-                                            AppColors.darkTextPrimary
-                                          ]
-                                        : [AppColors.deepGreen, AppColors.primaryGreen],
-                                  ).createShader(bounds),
-                                  child: const Text('الإمام الشاذلي',
-                                      style: TextStyle(
-                                          fontFamily: 'Amiri',
-                                          fontSize: 42,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                          height: 1.5),
-                                      textAlign: TextAlign.center),
-                                ),
+                                _foilTitle('الإمام الشاذلي',
+                                    fontSize: 42,
+                                    letterSpacing: 3,
+                                    isDark: isDark,
+                                    phaseShift: 0.08),
                               ]),
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 22),
                             _entrance(
                               _subtitleFade,
                               _subtitleSlide,
@@ -400,9 +422,9 @@ class _IntroScreenState extends State<IntroScreen>
                                     textAlign: TextAlign.center),
                               ]),
                             ),
-                            const SizedBox(height: 26),
+                            const SizedBox(height: 30),
                             _buildOrnamentLine(_bottomLineFade, _bottomLineWidth, accent),
-                            const SizedBox(height: 22),
+                            const SizedBox(height: 24),
                             _entrance(
                               _duaFade,
                               _duaSlide,
@@ -416,6 +438,17 @@ class _IntroScreenState extends State<IntroScreen>
                             ),
                           ],
                         ),
+                      ),
+                    ),
+
+                    // ── Quietly shows the intro is timed, and that a tap skips it
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 44 + viewPadding.bottom,
+                      child: FadeTransition(
+                        opacity: _bgFade,
+                        child: _buildBottomCue(accent, faintText),
                       ),
                     ),
                   ],
@@ -438,6 +471,81 @@ class _IntroScreenState extends State<IntroScreen>
             Transform.translate(offset: Offset(0, slide.value), child: c),
         child: child,
       ),
+    );
+  }
+
+  /// Gold-leaf lettering: a bright band drifts across the strokes.
+  Widget _foilTitle(
+    String text, {
+    required double fontSize,
+    required double letterSpacing,
+    required bool isDark,
+    double phaseShift = 0,
+  }) {
+    final base = isDark ? AppColors.gold : AppColors.deepGreen;
+    final sheen = isDark ? AppColors.goldLight : AppColors.primaryGreen;
+
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _loopController,
+        builder: (context, child) {
+          final phase = (_loopController.value * 4 + phaseShift) % 1.0;
+          final x = -1.7 + 3.4 * phase;
+          return ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment(x - 0.45, -1),
+              end: Alignment(x + 0.45, 1),
+              colors: [base, sheen, base],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(bounds),
+            child: child,
+          );
+        },
+        child: Text(text,
+            style: TextStyle(
+                fontFamily: 'ReemKufi',
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1.5,
+                letterSpacing: letterSpacing),
+            textAlign: TextAlign.center),
+      ),
+    );
+  }
+
+  Widget _buildBottomCue(Color accent, Color faintText) {
+    return AnimatedBuilder(
+      animation: _progressController,
+      builder: (context, _) {
+        final v = _progressController.value;
+        final hint = ((v - 0.35) / 0.3).clamp(0.0, 1.0);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(
+              opacity: hint * 0.7,
+              child: Text('اضغط للمتابعة',
+                  style: TextStyle(
+                      fontFamily: 'Amiri', fontSize: 14, color: faintText)),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: 104,
+              height: 1.5,
+              child: Stack(children: [
+                Container(color: accent.withValues(alpha: 0.14)),
+                FractionallySizedBox(
+                  alignment: AlignmentDirectional.centerStart,
+                  widthFactor: v,
+                  child: Container(color: accent.withValues(alpha: 0.5)),
+                ),
+              ]),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -541,9 +649,75 @@ class _IntroScreenState extends State<IntroScreen>
   }
 }
 
+/// A double rule inset from the edges with bracketed corners.
+class _FramePainter extends CustomPainter {
+  _FramePainter({
+    required this.color,
+    required this.isDark,
+    required this.insets,
+  });
+
+  final Color color;
+  final bool isDark;
+  final EdgeInsets insets;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = insets.deflateRect(Offset.zero & size);
+    final inner = outer.deflate(6);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(outer, const Radius.circular(4)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = color.withValues(alpha: isDark ? 0.20 : 0.16),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(inner, const Radius.circular(2)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7
+        ..color = color.withValues(alpha: isDark ? 0.11 : 0.09),
+    );
+
+    final bracket = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: isDark ? 0.55 : 0.4);
+    const arm = 26.0;
+
+    for (final corner in [
+      (outer.topLeft, 1.0, 1.0),
+      (outer.topRight, -1.0, 1.0),
+      (outer.bottomLeft, 1.0, -1.0),
+      (outer.bottomRight, -1.0, -1.0),
+    ]) {
+      final (p, dx, dy) = corner;
+      canvas.drawLine(p, p.translate(arm * dx, 0), bracket);
+      canvas.drawLine(p, p.translate(0, arm * dy), bracket);
+      // A small lozenge sits on the diagonal, just inside the corner.
+      final c = p.translate(11 * dx, 11 * dy);
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx, c.dy - 3)
+          ..lineTo(c.dx + 3, c.dy)
+          ..lineTo(c.dx, c.dy + 3)
+          ..lineTo(c.dx - 3, c.dy)
+          ..close(),
+        Paint()..color = color.withValues(alpha: isDark ? 0.5 : 0.35),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FramePainter old) =>
+      old.color != color || old.isDark != isDark || old.insets != insets;
+}
+
 // ── Static gradient background (never repaints) ──
-class _StaticGradientBg extends StatelessWidget {
-  const _StaticGradientBg();
+class _StaticGradientBg extends StatelessWidget {  const _StaticGradientBg();
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

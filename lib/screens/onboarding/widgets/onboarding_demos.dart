@@ -113,50 +113,49 @@ class WelcomeDemo extends StatelessWidget {
       builder: (context, t) {
         final breathe = 0.5 + 0.5 * math.sin(t * 2 * math.pi);
 
-        return Center(
-          child: SizedBox(
-            width: 220,
-            height: 220,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        p.accent.withValues(alpha: 0.05 + 0.07 * breathe),
-                        Colors.transparent,
-                      ],
-                    ),
+        return SizedBox(
+          height: 220,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      p.accent.withValues(alpha: 0.05 + 0.07 * breathe),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
-                for (final turn in const [0.0, 0.125])
-                  Transform.rotate(
-                    angle: t * 2 * math.pi * 0.12 + turn * 2 * math.pi,
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: p.accent.withValues(alpha: 0.22),
-                        ),
-                        borderRadius: BorderRadius.circular(14),
+              ),
+              for (final turn in const [0.0, 0.125])
+                Transform.rotate(
+                  angle: t * 2 * math.pi * 0.12 + turn * 2 * math.pi,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: p.accent.withValues(alpha: 0.22),
                       ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                Text(
-                  '\uFDFD',
-                  style: TextStyle(
-                    fontFamily: 'Amiri',
-                    fontSize: 44,
-                    height: 1.6,
-                    color: p.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
                 ),
-              ],
-            ),
+              Text(
+                '\uFDFD',
+                style: TextStyle(
+                  fontFamily: 'Amiri',
+                  fontSize: 44,
+                  height: 1.6,
+                  color: p.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         );
       },
@@ -184,7 +183,7 @@ class AppBarDemo extends StatelessWidget {
         final moon = _seg(t, 0.66, 0.78) - _seg(t, 0.78, 0.92);
 
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -209,6 +208,7 @@ class AppBarDemo extends StatelessWidget {
                     height: 40,
                     child: Stack(
                       alignment: Alignment.center,
+                      clipBehavior: Clip.none,
                       children: [
                         if (ripple > 0 && ripple < 1)
                           Container(
@@ -341,7 +341,7 @@ class SearchDemo extends StatelessWidget {
         final result = _seg(t, 0.46, 0.62);
 
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -466,47 +466,46 @@ class ZoomDemo extends StatelessWidget {
         final size = 15.0 + 13.0 * k;
         final spread = 26.0 + 34.0 * k;
 
-        return Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-            decoration: _panel(p),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 96,
-                  child: Center(
-                    child: Text(
-                      'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ',
-                      style: TextStyle(
-                        fontFamily: 'UthmanicHafs',
-                        fontSize: size,
-                        height: 1.9,
-                        color: p.textPrimary,
-                      ),
-                      textAlign: TextAlign.center,
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+          decoration: _panel(p),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 96,
+                child: Center(
+                  child: Text(
+                    'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ',
+                    style: TextStyle(
+                      fontFamily: 'UthmanicHafs',
+                      fontSize: size,
+                      height: 1.9,
+                      color: p.textPrimary,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  height: 26,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Transform.translate(
-                        offset: Offset(-spread, 0),
-                        child: _FingerDot(color: p.accent),
-                      ),
-                      Transform.translate(
-                        offset: Offset(spread, 0),
-                        child: _FingerDot(color: p.accent),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 26,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Transform.translate(
+                      offset: Offset(-spread, 0),
+                      child: _FingerDot(color: p.accent),
+                    ),
+                    Transform.translate(
+                      offset: Offset(spread, 0),
+                      child: _FingerDot(color: p.accent),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -554,7 +553,7 @@ class BookmarkDemo extends StatelessWidget {
         final saved = _seg(t, 0.64, 0.76);
 
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(14),
@@ -717,7 +716,7 @@ class FavoriteDemo extends StatelessWidget {
         final pop = 1 + 0.35 * math.sin(math.pi * _seg(t, 0.22, 0.46));
 
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Opacity(
               opacity: promote,
@@ -753,6 +752,7 @@ class FavoriteDemo extends StatelessWidget {
                 height: 40,
                 child: Stack(
                   alignment: Alignment.center,
+                  clipBehavior: Clip.none,
                   children: [
                     if (burst > 0 && burst < 1)
                       for (var i = 0; i < 6; i++)
