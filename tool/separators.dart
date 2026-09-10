@@ -36,8 +36,8 @@ void main(List<String> args) {
 
     // The mushaf face draws a comma as a small ring, so beside the rosette it
     // reads as a second, broken separator. There is only one separator.
-    promoted += RegExp('\u060C').allMatches(c).length;
-    c = c.replaceAll('\u060C', ' \u06DE ');
+    promoted += RegExp('[\u060C\u061B]').allMatches(c).length;
+    c = c.replaceAll(RegExp('[\u060C\u061B]'), ' \u06DE ');
 
     if (dots) {
       // A stop that closes a paragraph needs no separator after it, and a run
@@ -46,8 +46,6 @@ void main(List<String> args) {
       c = c.replaceAll(RegExp('(?<!\\.)\\.(?!\\.)(?=[ \\t\\r]*(\\n|\$))'), '');
       promoted += stop.allMatches(c).length;
       c = c.replaceAll(stop, ' \u06DE ');
-      promoted += RegExp('\u061B').allMatches(c).length;
-      c = c.replaceAll('\u061B', ' \u06DE ');
     }
 
     // Two Qur'anic blocks with nothing between them still need a separator.

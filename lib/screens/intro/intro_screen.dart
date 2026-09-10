@@ -302,15 +302,20 @@ class _IntroScreenState extends State<IntroScreen>
                             _entrance(
                               _bismillahFade,
                               _bismillahSlide,
-                              Text(
-                                'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
-                                style: TextStyle(
-                                    fontFamily: 'Amiri',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w400,
-                                    color: accent.withValues(alpha: 0.85),
-                                    height: 1.8),
-                                textAlign: TextAlign.center,
+                              // The same calligraphic ligature the hizb pages open with.
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '\uFDFD',
+                                  style: TextStyle(
+                                      fontFamily: 'Amiri',
+                                      fontSize: 46,
+                                      height: 1.6,
+                                      color: isDark
+                                          ? AppColors.darkTextPrimary
+                                          : AppColors.lightTextPrimary),
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 22),
