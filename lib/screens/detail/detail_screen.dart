@@ -11,7 +11,6 @@ import '../../providers/bookmarks_provider.dart';
 import '../../providers/favorites_provider.dart';
 import 'widgets/bookmarks_panel.dart';
 import 'widgets/content_body.dart';
-import 'widgets/zoom_instructions.dart';
 
 class DetailScreen extends StatefulWidget {
   final HizbPart part;
@@ -409,7 +408,6 @@ class _DetailScreenState extends State<DetailScreen>
           ),
         ),
         const SizedBox(height: 20),
-        const ZoomInstructions(),
       ],
     );
   }

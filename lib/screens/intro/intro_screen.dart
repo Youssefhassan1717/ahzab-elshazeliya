@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_screen.dart';
+import '../onboarding/onboarding_screen.dart';
 
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key});
@@ -46,9 +47,16 @@ class _IntroScreenState extends State<IntroScreen>
 
   bool _navigating = false;
 
+  // Resolved while the intro plays, so leaving it stays instant.
+  bool _needsOnboarding = false;
+
   @override
   void initState() {
     super.initState();
+
+    OnboardingScreen.hasBeenSeen().then((seen) {
+      if (mounted) _needsOnboarding = !seen;
+    });
 
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -162,7 +170,8 @@ class _IntroScreenState extends State<IntroScreen>
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 550),
-          pageBuilder: (_, __, ___) => const HomeScreen(),
+          pageBuilder: (_, __, ___) =>
+              _needsOnboarding ? const OnboardingScreen() : const HomeScreen(),
           transitionsBuilder: (_, animation, __, child) {
             final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
             return FadeTransition(
@@ -338,12 +347,11 @@ class _IntroScreenState extends State<IntroScreen>
                                   ).createShader(bounds),
                                   child: const Text('أحزاب',
                                       style: TextStyle(
-                                          fontFamily: 'ReemKufi',
+                                          fontFamily: 'Amiri',
                                           fontSize: 62,
                                           fontWeight: FontWeight.w700,
                                           color: Colors.white,
-                                          height: 1.5,
-                                          letterSpacing: 5),
+                                          height: 1.5),
                                       textAlign: TextAlign.center),
                                 ),
                                 const SizedBox(height: 6),
@@ -360,12 +368,11 @@ class _IntroScreenState extends State<IntroScreen>
                                   ).createShader(bounds),
                                   child: const Text('الإمام الشاذلي',
                                       style: TextStyle(
-                                          fontFamily: 'ReemKufi',
+                                          fontFamily: 'Amiri',
                                           fontSize: 42,
                                           fontWeight: FontWeight.w700,
                                           color: Colors.white,
-                                          height: 1.5,
-                                          letterSpacing: 3),
+                                          height: 1.5),
                                       textAlign: TextAlign.center),
                                 ),
                               ]),
@@ -378,16 +385,16 @@ class _IntroScreenState extends State<IntroScreen>
                                 Text(
                                     'إِمَامُ الْعَارِفِينَ وَقُطْبُ الْأَقْطَابِ وَكَهْفُ أَمْنِ الطُّلَّابِ',
                                     style: TextStyle(
-                                        fontFamily: 'ScheherazadeNew',
-                                        fontSize: 16,
+                                        fontFamily: 'Amiri',
+                                        fontSize: 17,
                                         color: subtitleColor,
                                         height: 1.7),
                                     textAlign: TextAlign.center),
                                 const SizedBox(height: 6),
                                 Text('رضي الله عنه',
                                     style: TextStyle(
-                                        fontFamily: 'ScheherazadeNew',
-                                        fontSize: 17,
+                                        fontFamily: 'Amiri',
+                                        fontSize: 18,
                                         color: faintText,
                                         height: 1.6),
                                     textAlign: TextAlign.center),
@@ -401,8 +408,8 @@ class _IntroScreenState extends State<IntroScreen>
                               _duaSlide,
                               Text('اللَّهُمَّ انْفَعْنَا بِهِ',
                                   style: TextStyle(
-                                      fontFamily: 'ScheherazadeNew',
-                                      fontSize: 17,
+                                      fontFamily: 'Amiri',
+                                      fontSize: 18,
                                       color: faintText,
                                       height: 1.6),
                                   textAlign: TextAlign.center),
