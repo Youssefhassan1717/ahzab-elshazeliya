@@ -73,6 +73,10 @@ class _DetailScreenState extends State<DetailScreen>
   List<(int, int)> _searchMatches = [];
   int _currentMatchIndex = 0;
 
+  /// The query actually in force. Starts from the one the search screen sent
+  /// and is cleared when the reader dismisses the match bar.
+  late String _query = widget.searchQuery;
+
   final ScrollController _scrollController = ScrollController();
 
   late final AnimationController _animController;
@@ -105,7 +109,7 @@ class _DetailScreenState extends State<DetailScreen>
     });
 
     // Compute all search matches and scroll to first
-    if (widget.searchQuery.isNotEmpty) {
+    if (_query.isNotEmpty) {
       _computeSearchMatches();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 150), () {
@@ -173,7 +177,7 @@ class _DetailScreenState extends State<DetailScreen>
 
   void _computeSearchMatches() {
     final cleanContent = _cleanContent(widget.part.content);
-    final normalizedQuery = normalizeArabic(widget.searchQuery);
+    final normalizedQuery = normalizeArabic(_query);
     _searchMatches = findNormalizedMatches(cleanContent, normalizedQuery, wholeWord: true);
     _currentMatchIndex = 0;
   }
@@ -216,6 +220,16 @@ class _DetailScreenState extends State<DetailScreen>
     HapticFeedback.selectionClick();
     final prev = (_currentMatchIndex - 1 + _searchMatches.length) % _searchMatches.length;
     _scrollToMatchIndex(prev);
+  }
+
+  /// Drops the query, which takes the match bar and the highlights with it.
+  void _clearSearch() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _query = '';
+      _searchMatches = [];
+      _currentMatchIndex = 0;
+    });
   }
 
   @override
@@ -375,7 +389,7 @@ class _DetailScreenState extends State<DetailScreen>
                     isScaling: _isScaling,
                     fontSize: fontSize,
                     isDark: isDark,
-                    searchQuery: widget.searchQuery,
+                    searchQuery: _query,
                     activeSearchMatchIndex: _currentMatchIndex,
                     bookmarks: bookmarks,
                     flashChunkIndex: _flashChunkIndex,
@@ -883,10 +897,11 @@ class _DetailScreenState extends State<DetailScreen>
               ),
             ),
 
-            // Floating search navigation bar
-            if (widget.searchQuery.isNotEmpty && _searchMatches.length > 1)
+            // Floating search navigation bar, above the bookmark bar when both
+            // are showing.
+            if (_query.isNotEmpty && _searchMatches.isNotEmpty)
               Positioned(
-                top: 8,
+                bottom: _showBookmarkNav ? 88 : 24,
                 left: 40,
                 right: 40,
                 child: Directionality(
@@ -896,6 +911,7 @@ class _DetailScreenState extends State<DetailScreen>
                     totalMatches: _searchMatches.length,
                     onNext: _nextMatch,
                     onPrev: _prevMatch,
+                    onDismiss: _clearSearch,
                     isDark: isDark,
                   ),
                 ),
@@ -1124,6 +1140,7 @@ class _SearchNavBar extends StatefulWidget {
   final int totalMatches;
   final VoidCallback onNext;
   final VoidCallback onPrev;
+  final VoidCallback onDismiss;
   final bool isDark;
 
   const _SearchNavBar({
@@ -1131,6 +1148,7 @@ class _SearchNavBar extends StatefulWidget {
     required this.totalMatches,
     required this.onNext,
     required this.onPrev,
+    required this.onDismiss,
     required this.isDark,
   });
 
@@ -1171,7 +1189,7 @@ class _SearchNavBarState extends State<_SearchNavBar>
       opacity: CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, -0.5),
+          begin: const Offset(0, 0.5),
           end: Offset.zero,
         ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic)),
         child: Center(
@@ -1195,6 +1213,15 @@ class _SearchNavBarState extends State<_SearchNavBar>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Dismiss button
+                _navButton(
+                  icon: Icons.close_rounded,
+                  onTap: widget.onDismiss,
+                  accent: accent.withValues(alpha: 0.5),
+                  size: 18,
+                ),
+                const SizedBox(width: 2),
+
                 // Previous button
                 _navButton(
                   icon: Icons.keyboard_arrow_up_rounded,
@@ -1210,14 +1237,21 @@ class _SearchNavBarState extends State<_SearchNavBar>
                     color: accent.withValues(alpha: widget.isDark ? 0.12 : 0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    '${widget.currentIndex + 1} / ${widget.totalMatches}',
-                    style: TextStyle(
-                      fontFamily: 'Amiri',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: accent,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.search_rounded, size: 14, color: accent),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.currentIndex + 1} / ${widget.totalMatches}',
+                        style: TextStyle(
+                          fontFamily: 'Amiri',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -1241,6 +1275,7 @@ class _SearchNavBarState extends State<_SearchNavBar>
     required IconData icon,
     required VoidCallback onTap,
     required Color accent,
+    double size = 22,
   }) {
     return Material(
       color: Colors.transparent,
@@ -1249,7 +1284,7 @@ class _SearchNavBarState extends State<_SearchNavBar>
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 22, color: accent),
+          child: Icon(icon, size: size, color: accent),
         ),
       ),
     );

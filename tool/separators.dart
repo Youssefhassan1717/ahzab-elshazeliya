@@ -61,6 +61,9 @@ void main(List<String> args) {
     c = c.replaceAllMapped(
         RegExp('(\\s)([\u064B-\u0652\u0670]+)([\u0621-\u064A])'),
         (m) => '${m[1]}${m[3]}${m[2]}');
+    // A mark with a space on both sides belongs to the word before it.
+    c = c.replaceAllMapped(
+        RegExp(' +([\u064B-\u0652\u0670]+)(?=\\s|\$)'), (m) => m[1]!);
     // A mark stranded after a separator belongs to nothing at all.
     c = c.replaceAllMapped(
         RegExp('(^|[\u06DE])\\s*[\u064B-\u0652\u0670]+'), (m) => m[1]!);
