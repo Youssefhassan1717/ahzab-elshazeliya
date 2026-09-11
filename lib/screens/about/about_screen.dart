@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/smooth_scroll_physics.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/muqaddima.dart';
 import '../detail/widgets/content_body.dart';
 
@@ -37,6 +38,8 @@ class _AboutScreenState extends State<AboutScreen>
   int _lastSmoothTime = 0;
   bool _isScaling = false;
 
+  final ScrollController _scrollController = ScrollController();
+
   late final AnimationController _animController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 300),
@@ -63,6 +66,7 @@ class _AboutScreenState extends State<AboutScreen>
     _animation?.removeListener(_onAnimationTick);
     _animController.dispose();
     _fontSizeNotifier.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -168,26 +172,63 @@ class _AboutScreenState extends State<AboutScreen>
           onPointerCancel: (e) => _endPinch(e.pointer),
           child: GestureDetector(
             onDoubleTap: _resetZoom,
-            child: ListView(
-              physics: _isScaling
-                  ? const NeverScrollableScrollPhysics()
-                  : const SmoothScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                textSelectionTheme: TextSelectionThemeData(
+                  selectionColor: AppColors.emeraldGreen.withValues(
+                    alpha: 0.25,
+                  ),
+                  selectionHandleColor: AppColors.emeraldGreen,
+                  cursorColor: AppColors.emeraldGreen,
+                ),
+              ),
+              child: SelectionArea(
+                child: Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: RawScrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: false,
+                    trackVisibility: false,
+                    thickness: 4.5,
+                    radius: const Radius.circular(8),
+                    fadeDuration: const Duration(milliseconds: 400),
+                    timeToFade: const Duration(milliseconds: 800),
+                    thumbColor: isDark
+                        ? AppColors.gold.withValues(alpha: 0.45)
+                        : AppColors.emeraldGreen.withValues(alpha: 0.35),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 2,
                     ),
-              padding: const EdgeInsets.fromLTRB(4, 18, 4, 32),
-              children: [
-                ValueListenableBuilder<double>(
-                  valueListenable: _fontSizeNotifier,
-                  builder: (context, size, _) => ContentBody(
-                    content: muqaddima.content,
-                    title: muqaddima.title,
-                    bodyFontFamily: ContentBody.mushafFont,
-                    isScaling: _isScaling,
-                    fontSize: size,
-                    isDark: isDark,
+                    minThumbLength: 80,
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        physics: _isScaling
+                            ? const NeverScrollableScrollPhysics()
+                            : const SmoothScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics(),
+                              ),
+                        padding: const EdgeInsets.fromLTRB(4, 18, 4, 32),
+                        child: ValueListenableBuilder<double>(
+                          valueListenable: _fontSizeNotifier,
+                          builder: (context, size, _) => RepaintBoundary(
+                            child: ContentBody(
+                              content: muqaddima.content,
+                              title: muqaddima.title,
+                              bodyFontFamily: ContentBody.mushafFont,
+                              isScaling: _isScaling,
+                              fontSize: size,
+                              isDark: isDark,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
