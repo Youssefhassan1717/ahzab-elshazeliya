@@ -247,6 +247,7 @@ class ContentBody extends StatelessWidget {
     for (final entry in sectionEntries) {
       // Every sub-hizb gets a plain heading; the framed card read as clutter.
       if (entry.header != null) {
+        if (parts.isNotEmpty) parts.add(_duaDivider());
         parts.add(_buildSectionHeader(entry.header!));
       }
       if (entry.text.isNotEmpty) {
