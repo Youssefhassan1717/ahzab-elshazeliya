@@ -269,6 +269,20 @@ class ContentBody extends StatelessWidget {
 
   /// `{ ثلاثاً }` and the like: the count is drawn in the accent colour.
   static final _labelPattern = RegExp(r'\{[^}]*\}');
+  static final _digitPattern = RegExp(r'[\u0660-\u0669\u06F0-\u06F9]+');
+
+  /// In the mushaf face every Arabic-Indic digit is drawn as an ornate verse
+  /// medallion. That is right for an ayah number and wrong for a date such as
+  /// ( ت٦٥٦هـ ), so ordinary prose digits are set in Amiri instead.
+  List<(int, int)> _plainDigitRuns(String text, List<(int, int)> verses) {
+    if (!_isMushaf) return const [];
+    final out = <(int, int)>[];
+    for (final m in _digitPattern.allMatches(text)) {
+      final insideVerse = verses.any((v) => m.start < v.$2 && m.end > v.$1);
+      if (!insideVerse) out.add((m.start, m.end));
+    }
+    return out;
+  }
 
   /// `§Q§reference|uthmani text§Q§` — a verbatim Qur'anic passage.
   static final _quranPattern = RegExp(r'§Q§(.+?)\|(.+?)§Q§', dotAll: true);
@@ -366,6 +380,7 @@ class ContentBody extends StatelessWidget {
                 skipRanges: [
                   ...markup.verses,
                   ...markup.quranFrames,
+                  ..._plainDigitRuns(source, markup.verses),
                 ],
               );
         return _buildStyledText(
@@ -412,6 +427,9 @@ class ContentBody extends StatelessWidget {
 
     // Ordered outermost first: later layers are merged over earlier ones.
     final layers = <_Overlay>[
+      // First, so a verse number keeps the mushaf medallion.
+      for (final (s, e) in _plainDigitRuns(text, verses))
+        _Overlay(s, e, const TextStyle(fontFamily: 'Amiri', letterSpacing: 0)),
       for (final (s, e) in frames) _Overlay(s, e, frameStyle),
       for (final (s, e) in smallFrames) _Overlay(s, e, smallFrameStyle),
       for (final (s, e) in verses) _Overlay(s, e, verseStyle),
