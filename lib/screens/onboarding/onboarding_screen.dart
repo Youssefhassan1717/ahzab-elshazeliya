@@ -30,6 +30,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
   bool _leaving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // The demos are composed for a tall screen.
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
   late final List<_Page> _pages = [
     _Page(
       icon: Icons.spa_rounded,
@@ -89,6 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _controller.dispose();
     super.dispose();
   }

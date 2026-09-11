@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
@@ -331,29 +331,6 @@ class _IntroScreenState extends State<IntroScreen>
                       ),
                     ),
 
-                    // ── Inset rule + corner brackets, like a bound frontispiece
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: RepaintBoundary(
-                          child: FadeTransition(
-                            opacity: _bgFade,
-                            child: CustomPaint(
-                              painter: _FramePainter(
-                                color: accent,
-                                isDark: isDark,
-                                insets: EdgeInsets.fromLTRB(
-                                  16,
-                                  viewPadding.top + 12,
-                                  16,
-                                  viewPadding.bottom + 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
                     // ── Content
                     Center(
                       child: Padding(
@@ -649,75 +626,9 @@ class _IntroScreenState extends State<IntroScreen>
   }
 }
 
-/// A double rule inset from the edges with bracketed corners.
-class _FramePainter extends CustomPainter {
-  _FramePainter({
-    required this.color,
-    required this.isDark,
-    required this.insets,
-  });
-
-  final Color color;
-  final bool isDark;
-  final EdgeInsets insets;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final outer = insets.deflateRect(Offset.zero & size);
-    final inner = outer.deflate(6);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(outer, const Radius.circular(4)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withValues(alpha: isDark ? 0.20 : 0.16),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(inner, const Radius.circular(2)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7
-        ..color = color.withValues(alpha: isDark ? 0.11 : 0.09),
-    );
-
-    final bracket = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: isDark ? 0.55 : 0.4);
-    const arm = 26.0;
-
-    for (final corner in [
-      (outer.topLeft, 1.0, 1.0),
-      (outer.topRight, -1.0, 1.0),
-      (outer.bottomLeft, 1.0, -1.0),
-      (outer.bottomRight, -1.0, -1.0),
-    ]) {
-      final (p, dx, dy) = corner;
-      canvas.drawLine(p, p.translate(arm * dx, 0), bracket);
-      canvas.drawLine(p, p.translate(0, arm * dy), bracket);
-      // A small lozenge sits on the diagonal, just inside the corner.
-      final c = p.translate(11 * dx, 11 * dy);
-      canvas.drawPath(
-        Path()
-          ..moveTo(c.dx, c.dy - 3)
-          ..lineTo(c.dx + 3, c.dy)
-          ..lineTo(c.dx, c.dy + 3)
-          ..lineTo(c.dx - 3, c.dy)
-          ..close(),
-        Paint()..color = color.withValues(alpha: isDark ? 0.5 : 0.35),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _FramePainter old) =>
-      old.color != color || old.isDark != isDark || old.insets != insets;
-}
-
 // ── Static gradient background (never repaints) ──
-class _StaticGradientBg extends StatelessWidget {  const _StaticGradientBg();
+class _StaticGradientBg extends StatelessWidget {
+  const _StaticGradientBg();
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

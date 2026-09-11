@@ -756,7 +756,7 @@ class FavoriteDemo extends StatelessWidget {
             ),
             _MockCard(
               p: p,
-              title: 'حِزْبُ الْبَحْرِ',
+              title: 'حزب البحر',
               border: Color.lerp(
                 p.hairline,
                 p.accent.withValues(alpha: 0.5),
@@ -808,7 +808,7 @@ class FavoriteDemo extends StatelessWidget {
             const SizedBox(height: 10),
             Opacity(
               opacity: 1 - promote * 0.55,
-              child: _MockCard(p: p, title: 'حِزْبُ الْبَرِّ', dim: true),
+              child: _MockCard(p: p, title: 'حزب البر', dim: true),
             ),
           ],
         );

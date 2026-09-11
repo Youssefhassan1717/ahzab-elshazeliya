@@ -628,72 +628,21 @@ class ContentBody extends StatelessWidget {
   Widget _buildSectionHeader(String title) {
     final headerColor = isDark ? AppColors.gold : AppColors.emeraldGreen;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      child: Column(
-        children: [
-          // Top line with triple star
-          Row(
-            children: [
-              Expanded(child: _gradientLine(headerColor, true)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: _eightPointStar(headerColor, 6),
-              ),
-              _eightPointStar(headerColor, 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: _eightPointStar(headerColor, 6),
-              ),
-              Expanded(child: _gradientLine(headerColor, false)),
-            ],
+      padding: const EdgeInsets.fromLTRB(8, 38, 8, 26),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'Amiri',
+            fontSize: fontSize * 1.5,
+            fontWeight: FontWeight.w700,
+            color: headerColor,
+            height: 1.6,
           ),
-          const SizedBox(height: 14),
-
-          // Title in ornamental frame
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: headerColor.withValues(alpha: isDark ? 0.08 : 0.04),
-              border: Border.all(
-                color: headerColor.withValues(alpha: isDark ? 0.15 : 0.08),
-                width: 0.5,
-              ),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                '﴾  $title  ﴿',
-                style: TextStyle(
-                  fontFamily: 'Amiri',
-                  fontSize: fontSize * 1.15,
-                  fontWeight: FontWeight.w700,
-                  color: headerColor,
-                  height: 1.6,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // Bottom line
-          Row(
-            children: [
-              Expanded(child: _gradientLine(headerColor, true)),
-              Text(
-                '  ۞  ',
-                style: TextStyle(
-                  color: headerColor.withValues(alpha: 0.35),
-                  fontSize: 12,
-                ),
-              ),
-              Expanded(child: _gradientLine(headerColor, false)),
-            ],
-          ),
-        ],
+          textAlign: TextAlign.center,
+          maxLines: 1,
+        ),
       ),
     );
   }
