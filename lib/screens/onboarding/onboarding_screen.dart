@@ -348,7 +348,7 @@ class _PageView extends StatelessWidget {
             child: Column(
               children: [
                 Expanded(
-                  flex: 5,
+                  flex: 9,
                   child: Transform.translate(
                     offset: Offset(delta * 70, 0),
                     child: Transform.scale(
@@ -365,7 +365,7 @@ class _PageView extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  flex: 4,
+                  flex: 10,
                   child: Transform.translate(
                     offset: Offset(delta * 26, 0),
                     child: _Copy(
@@ -400,73 +400,88 @@ class _Copy extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accent.withValues(alpha: 0.12),
-            ),
-            child: Icon(page.icon, color: accent, size: 24),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            page.title,
-            style: TextStyle(
-              fontFamily: 'Amiri',
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              height: 1.5,
-              color: textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            page.body,
-            style: TextStyle(
-              fontFamily: 'Amiri',
-              fontSize: 17,
-              height: 1.9,
-              color: textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (page.hint != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: accent.withValues(alpha: 0.16)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(page.hintIcon, size: 16, color: accent),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      page.hint!,
-                      style: TextStyle(
-                        fontFamily: 'Amiri',
-                        fontSize: 15,
-                        height: 1.6,
-                        color: textPrimary,
+    // Laid out at full width, then shrunk just enough to fit: never scrolls.
+    return LayoutBuilder(
+      builder: (context, constraints) => Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent.withValues(alpha: 0.12),
+                  ),
+                  child: Icon(page.icon, color: accent, size: 24),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  page.title,
+                  style: TextStyle(
+                    fontFamily: 'Amiri',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    height: 1.5,
+                    color: textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  page.body,
+                  style: TextStyle(
+                    fontFamily: 'Amiri',
+                    fontSize: 17,
+                    height: 1.9,
+                    color: textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (page.hint != null) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.16),
                       ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(page.hintIcon, size: 16, color: accent),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            page.hint!,
+                            style: TextStyle(
+                              fontFamily: 'Amiri',
+                              fontSize: 15,
+                              height: 1.6,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
+                const SizedBox(height: 8),
+              ],
             ),
-          ],
-          const SizedBox(height: 8),
-        ],
+          ),
+        ),
       ),
     );
   }

@@ -114,13 +114,13 @@ class WelcomeDemo extends StatelessWidget {
         final breathe = 0.5 + 0.5 * math.sin(t * 2 * math.pi);
 
         return SizedBox(
-          height: 220,
+          height: 240,
           child: Stack(
             alignment: Alignment.center,
             children: [
               Container(
-                width: 220,
-                height: 220,
+                width: 240,
+                height: 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
@@ -135,26 +135,26 @@ class WelcomeDemo extends StatelessWidget {
                 Transform.rotate(
                   angle: t * 2 * math.pi * 0.12 + turn * 2 * math.pi,
                   child: Container(
-                    width: 150,
-                    height: 150,
+                    width: 172,
+                    height: 172,
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: p.accent.withValues(alpha: 0.22),
                       ),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
               // The basmala ligature is very wide; let it shrink to fit.
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     '\uFDFD',
                     style: TextStyle(
                       fontFamily: 'Amiri',
-                      fontSize: 44,
+                      fontSize: 62,
                       height: 1.6,
                       color: p.textPrimary,
                     ),
