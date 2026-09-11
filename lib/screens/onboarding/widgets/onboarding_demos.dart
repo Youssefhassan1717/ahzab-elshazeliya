@@ -145,15 +145,22 @@ class WelcomeDemo extends StatelessWidget {
                     ),
                   ),
                 ),
-              Text(
-                '\uFDFD',
-                style: TextStyle(
-                  fontFamily: 'Amiri',
-                  fontSize: 44,
-                  height: 1.6,
-                  color: p.textPrimary,
+              // The basmala ligature is very wide; let it shrink to fit.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '\uFDFD',
+                    style: TextStyle(
+                      fontFamily: 'Amiri',
+                      fontSize: 44,
+                      height: 1.6,
+                      color: p.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -250,9 +257,9 @@ class AppBarDemo extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            _MockCard(p: p, title: 'حِزْبُ الْبَحْرِ'),
+            _MockCard(p: p, title: 'حزب البحر'),
             const SizedBox(height: 10),
-            _MockCard(p: p, title: 'حِزْبُ الْبَرِّ', dim: true),
+            _MockCard(p: p, title: 'حزب البر', dim: true),
           ],
         );
       },
@@ -400,7 +407,7 @@ class SearchDemo extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'حِزْبُ الْفَتْحِ',
+                            'حزب الفتح',
                             style: TextStyle(
                               fontFamily: 'Amiri',
                               fontSize: 15,
@@ -463,7 +470,6 @@ class ZoomDemo extends StatelessWidget {
       duration: const Duration(seconds: 5),
       builder: (context, t) {
         final k = 0.5 - 0.5 * math.cos(t * 2 * math.pi);
-        final size = 15.0 + 13.0 * k;
         final spread = 26.0 + 34.0 * k;
 
         return Container(
@@ -475,15 +481,24 @@ class ZoomDemo extends StatelessWidget {
               SizedBox(
                 height: 96,
                 child: Center(
-                  child: Text(
-                    'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ',
-                    style: TextStyle(
-                      fontFamily: 'UthmanicHafs',
-                      fontSize: size,
-                      height: 1.9,
-                      color: p.textPrimary,
+                  // Widening the box scales the line up; it never wraps.
+                  child: SizedBox(
+                    width: 264 * (0.55 + 0.45 * k),
+                    child: FittedBox(
+                      fit: BoxFit.fitWidth,
+                      child: Text(
+                        'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontFamily: 'UthmanicHafs',
+                          fontSize: 20,
+                          height: 1.9,
+                          color: p.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
